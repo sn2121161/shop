@@ -1,0 +1,51 @@
+services:
+  api:
+    build: ./backend
+    image: shop-api:${IMAGE_TAG:-local}
+    env_file: ./backend/.env
+    environment:
+      AUTO_CREATE_SCHEMA: "false"
+      COMMENT_UPLOAD_DIR: /app/uploads
+    ports:
+      - "127.0.0.1:5600:5600"
+    volumes:
+      - shop_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 768m
+    pids_limit: 100
+
+  db:
+    image: postgres:16
+    env_file: ./backend/.env
+    volumes:
+      - shop_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop_prod -d shop_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 1024m
+    pids_limit: 100
+
+  frontend:
+    build: ./frontend
+    image: shop-frontend:${IMAGE_TAG:-local}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+    cpus: 0.25
+    mem_limit: 384m
+    pids_limit: 100
+
+volumes:
+  shop_postgres:
+  shop_uploads:

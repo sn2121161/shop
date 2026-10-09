@@ -3,7 +3,7 @@ import axios from "axios";
 import { create } from "zustand";
 
 export type Product = { id:number; name:string; price:number; tagline:string; story:string; image:string; stock:number; lowStock?:boolean };
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5600/api").replace(/\/api\/?$/, "");
+const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/api\/?$/, "");
 const productAssetUrl = (path: string) => path.startsWith("/uploads/") ? `${apiBaseUrl}${path}` : path;
 export const productImage = (product: Pick<Product, "name" | "image">) =>
   product.name === "血清素" ? "/images/serotonin-necklace.png" : product.name === "可卡因" ? "/images/cocaine-necklace.png" : productAssetUrl(product.image);
@@ -11,7 +11,7 @@ export const productReferenceImage = (product: Pick<Product, "name">) =>
   product.name === "血清素" ? "/images/serotonin-reference.jpg" : null;
 export type CartItem = { id:number; product:Product; quantity:number; stock:number };
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5600/api",
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "/api",
 });
 api.interceptors.request.use((config) => { const token = localStorage.getItem("mystery_token"); if (token) config.headers.Authorization = `Bearer ${token}`; return config; });
 api.interceptors.response.use((response) => response, (error) => { if (axios.isAxiosError(error) && error.response?.status === 403 && error.response.data?.message === "该用户已停用") { localStorage.removeItem("mystery_token"); localStorage.removeItem("mystery_username"); localStorage.removeItem("mystery_role"); if (window.location.pathname !== "/login") window.location.href = "/login?reason=disabled"; } return Promise.reject(error); });
