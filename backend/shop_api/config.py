@@ -1,0 +1,22 @@
+import os
+from pathlib import Path
+
+from cryptography.fernet import Fernet
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(ROOT / ".env")
+
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres@localhost/nzw")
+JWT_SECRET = os.getenv("JWT_SECRET", "local-development-secret-change-me-32b")
+UPLOAD_DIRECTORY = Path(os.getenv("COMMENT_UPLOAD_DIR", ROOT / "uploads"))
+PAYMENT_ENCRYPTION_KEY = os.getenv("PAYMENT_ENCRYPTION_KEY")
+if not PAYMENT_ENCRYPTION_KEY:
+    raise RuntimeError("PAYMENT_ENCRYPTION_KEY 未配置")
+CARD_CIPHER = Fernet(PAYMENT_ENCRYPTION_KEY.encode())
+
+# Feishu is deliberately optional in local development: orders must still be
+# created while a bot is unavailable or has not yet been configured.
+FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "")
+FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "")
+FEISHU_ORDER_CHAT_ID = os.getenv("FEISHU_ORDER_CHAT_ID", "")

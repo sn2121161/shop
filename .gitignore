@@ -1,0 +1,46 @@
+# Operating system and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+backend/uploads/
+backend/shop.db
+
+# JavaScript / Vinext
+frontend/node_modules/
+frontend/build/
+frontend/.next/
+frontend/.vinext/
+frontend/dist/
+frontend/.wrangler/
+frontend/coverage/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnpm-debug.log*
+
+# Generated runtime artifacts
+*.log
+outputs/
+work/
+.pnpm-store/
