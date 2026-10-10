@@ -1,6 +1,7 @@
 FROM node:22-bookworm-slim
 
-ENV NEXT_PUBLIC_API_URL=/api
+ARG NEXT_PUBLIC_API_URL=/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile

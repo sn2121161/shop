@@ -34,7 +34,10 @@ services:
     pids_limit: 100
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:5600/api
     image: shop-frontend:${IMAGE_TAG:-local}
     ports:
       - "127.0.0.1:3000:3000"
