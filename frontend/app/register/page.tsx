@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Card, Form, Input, message } from "antd";
 import { api, apiErrorMessage } from "../shop";
@@ -21,7 +20,7 @@ export default function Register() {
     }
   };
   return <main className="auth-page">
-    {holder}<Card className="auth-card"><Link className="back-home" href="/">← 回到小屋</Link>
+    {holder}<Card className="auth-card"><a className="back-home" href="/">← 回到小屋</a>
       <p className="eyebrow">JOIN THE STORY</p><h1>创建账户</h1><p>将喜欢的分子故事收藏进你的购物车。</p>
       <Form form={form} layout="vertical" onFinish={submit}>
         <Form.Item label="账号" name="username" rules={[{ required: true, message: "请输入账号" }, { min: 3, message: "至少 3 位" }]}><Input size="large" /></Form.Item>
@@ -31,7 +30,7 @@ export default function Register() {
           ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue("password") === value ? Promise.resolve() : Promise.reject(new Error("两次密码不一致")); } }),
         ]}><Input.Password size="large" /></Form.Item>
         <Button block size="large" type="primary" htmlType="submit">创建账户</Button>
-      </Form><p className="auth-switch">已有账号？ <Link href="/login">去登录</Link></p>
+      </Form><p className="auth-switch">已有账号？ <a href="/login">去登录</a></p>
     </Card>
   </main>;
 }

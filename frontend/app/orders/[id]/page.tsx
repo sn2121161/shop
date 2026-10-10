@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Card, Descriptions, Result, Spin, Tag } from "antd";
@@ -23,7 +22,7 @@ export default function OrderPage() {
   const fulfillment = order.fulfillment;
   const notification = order.notificationStatus === "notified" ? <Tag color="green">飞书已通知</Tag> : <Tag color="gold">飞书通知待重试</Tag>;
   return <main className="order-page">
-    <Result status="success" title="订单已创建" subTitle={`订单 #${order.id}，应付 ¥ ${order.total.toFixed(2)}。目前不提供线上支付跳转。`} extra={<Link href="/"><Button type="primary">回到小屋</Button></Link>} />
+    <Result status="success" title="订单已创建" subTitle={`订单 #${order.id}，应付 ¥ ${order.total.toFixed(2)}。目前不提供线上支付跳转。`} extra={<Button type="primary" onClick={() => { window.location.href = "/"; }}>回到小屋</Button>} />
     <Card title="本次订单" extra={notification}>
       <Descriptions column={1} size="middle" labelStyle={{ width: 112, color: "#667085" }}>
         <Descriptions.Item label="订单号">#{order.id}</Descriptions.Item>

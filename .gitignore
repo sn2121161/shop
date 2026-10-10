@@ -15,6 +15,7 @@
 __pycache__/
 *.py[cod]
 *.so
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -33,7 +34,10 @@ frontend/.next/
 frontend/.vinext/
 frontend/dist/
 frontend/.wrangler/
+frontend/.turbo/
 frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
 frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
@@ -44,3 +48,9 @@ frontend/.pnpm-debug.log*
 outputs/
 work/
 .pnpm-store/
+
+# Local Docker overrides and bind-mounted runtime data
+docker-compose.override.yml
+docker-compose.local.yml
+postgres-data/
+docker-data/

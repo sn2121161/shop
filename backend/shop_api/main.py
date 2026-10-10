@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import sessionmaker
 
-from .config import DATABASE_URL, UPLOAD_DIRECTORY
+from .config import ADMIN_BOOTSTRAP_PASSWORD, AUTO_CREATE_SCHEMA, CORS_ORIGINS, DATABASE_URL, SEED_DEMO_DATA, UPLOAD_DIRECTORY
 from .database import Base, build_engine, create_schema, migrate_schema
 from .admin_router import admin_router
 from .routers import router
@@ -28,7 +28,12 @@ def create_app(database_url: str | None = None, jwt_secret: str | None = None, u
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        create_schema(engine, url); Base.metadata.create_all(engine); migrate_schema(engine, url); seed_database(sessions)
+        if AUTO_CREATE_SCHEMA or url.startswith("sqlite"):
+            create_schema(engine, url); Base.metadata.create_all(engine); migrate_schema(engine, url)
+        if SEED_DEMO_DATA:
+            if not url.startswith("sqlite") and not AUTO_CREATE_SCHEMA and not ADMIN_BOOTSTRAP_PASSWORD:
+                raise RuntimeError("ADMIN_BOOTSTRAP_PASSWORD must be set for a production bootstrap")
+            seed_database(sessions, ADMIN_BOOTSTRAP_PASSWORD or "Admin@123")
         app.state.sessions = sessions; app.state.comment_upload_directory = comment_directory; app.state.product_upload_directory = product_directory; app.state.notifications_enabled = not url.startswith("sqlite")
         stop_retries = asyncio.Event()
 
@@ -50,7 +55,7 @@ def create_app(database_url: str | None = None, jwt_secret: str | None = None, u
             engine.dispose()
 
     app = FastAPI(title="Molecule Shop API", lifespan=lifespan)
-    app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+    app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
     app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
 
     @app.exception_handler(HTTPException)
@@ -65,4 +70,9 @@ def create_app(database_url: str | None = None, jwt_secret: str | None = None, u
 
     app.include_router(router)
     app.include_router(admin_router)
+
+    @app.get("/health", include_in_schema=False)
+    def healthcheck():
+        return {"status": "ok"}
+
     return app

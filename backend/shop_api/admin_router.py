@@ -152,7 +152,7 @@ def list_products(
     query = select(Product, Inventory).join(Inventory).where(Product.status == status)
     if keyword.strip(): query = query.where(Product.name.ilike(f"%{keyword.strip()}%"))
     total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
-    rows = session.execute(query.order_by(Inventory.quantity.asc(), Product.id.desc()).offset((page - 1) * page_size).limit(page_size)).all()
+    rows = session.execute(query.order_by(func.lower(Product.name).asc(), Product.id.asc()).offset((page - 1) * page_size).limit(page_size)).all()
     return {"items": [product_payload(product, inventory) for product, inventory in rows], "total": total, "page": page, "pageSize": page_size}
 
 

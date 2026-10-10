@@ -40,12 +40,12 @@ def save_product_image(image: UploadFile, directory: Path) -> str:
     return f"/uploads/products/{filename}"
 
 
-def seed_database(sessions: sessionmaker[Session]) -> None:
+def seed_database(sessions: sessionmaker[Session], admin_password: str = "Admin@123") -> None:
     with sessions() as session:
         admin = session.scalar(select(User).where(User.username == "admin"))
         if not admin:
             # The requested bootstrap credential is hashed and never exposed by an API.
-            session.add(User(username="admin", password_hash=generate_password_hash("Admin@123"), role="admin"))
+            session.add(User(username="admin", password_hash=generate_password_hash(admin_password), role="admin"))
             session.commit()
         if not session.scalar(select(Product.id).limit(1)):
             for name, price, tagline, story in PRODUCTS:

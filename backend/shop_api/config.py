@@ -14,6 +14,10 @@ PAYMENT_ENCRYPTION_KEY = os.getenv("PAYMENT_ENCRYPTION_KEY")
 if not PAYMENT_ENCRYPTION_KEY:
     raise RuntimeError("PAYMENT_ENCRYPTION_KEY 未配置")
 CARD_CIPHER = Fernet(PAYMENT_ENCRYPTION_KEY.encode())
+CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:5173").split(",") if origin.strip()]
+AUTO_CREATE_SCHEMA = os.getenv("AUTO_CREATE_SCHEMA", "true").lower() == "true"
+SEED_DEMO_DATA = os.getenv("SEED_DEMO_DATA", "true").lower() == "true"
+ADMIN_BOOTSTRAP_PASSWORD = os.getenv("ADMIN_BOOTSTRAP_PASSWORD", "")
 
 # Feishu is deliberately optional in local development: orders must still be
 # created while a bot is unavailable or has not yet been configured.

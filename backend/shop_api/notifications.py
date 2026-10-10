@@ -63,10 +63,13 @@ def _send_card(card: dict, post: Callable[..., httpx.Response] | None = None) ->
         json={"receive_id": FEISHU_ORDER_CHAT_ID, "msg_type": "interactive", "content": json.dumps(card, ensure_ascii=False)},
         timeout=10,
     )
-    response.raise_for_status()
-    payload = response.json()
+    try:
+        payload = response.json()
+    except ValueError as error:
+        raise RuntimeError(f"飞书消息响应不是 JSON：HTTP {response.status_code}") from error
     if payload.get("code") != 0:
         raise RuntimeError(f"飞书消息发送失败：{payload.get('msg', 'unknown error')}")
+    response.raise_for_status()
 
 
 def send_test_card() -> None:
