@@ -40,7 +40,7 @@ services:
         NEXT_PUBLIC_API_URL: http://localhost:5600/api
     image: shop-frontend:${IMAGE_TAG:-local}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "3000:3000"
     depends_on:
       api:
         condition: service_started
