@@ -27,6 +27,13 @@ def create_schema(engine, database_url: str) -> None:
 def migrate_schema(engine, database_url: str) -> None:
     """Additive migration for installations created before the merchant console."""
     if database_url.startswith("sqlite"):
+        with engine.begin() as connection:
+            columns = {row[1] for row in connection.execute(text("PRAGMA table_info(users)"))}
+            if "email" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR"))
+                connection.execute(text("UPDATE users SET email = CASE WHEN role = 'admin' THEN '1136205530@qq.com' ELSE 'nizhengwen@126.com' END WHERE email IS NULL"))
+            if "token_version" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))
         return
     statements = (
         "ALTER TABLE shop.users ADD COLUMN IF NOT EXISTS status VARCHAR NOT NULL DEFAULT 'active'",

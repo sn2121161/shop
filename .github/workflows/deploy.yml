@@ -1,0 +1,101 @@
+name: Test and deploy shop
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shop-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images (Linux amd64)
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          image_base="ghcr.io/${REPOSITORY,,}"
+          echo "IMAGE_BASE=$image_base" >> "$GITHUB_ENV"
+          docker build --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
+            -t "$image_base-api:$GITHUB_SHA" ./backend
+          docker build --build-arg NEXT_PUBLIC_API_URL=/api \
+            --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
+            -t "$image_base-frontend:$GITHUB_SHA" ./frontend
+      - name: Run backend tests with isolated test configuration
+        run: |
+          set -euo pipefail
+          test_key=$(docker run --rm --entrypoint python "$IMAGE_BASE-api:$GITHUB_SHA" \
+            -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
+          docker run --rm \
+            -e PAYMENT_ENCRYPTION_KEY="$test_key" \
+            -e DATABASE_URL=sqlite:// -e AUTO_CREATE_SCHEMA=true -e SEED_DEMO_DATA=true \
+            -e ADMIN_BOOTSTRAP_PASSWORD=Admin@123 \
+            -e COMMENT_UPLOAD_DIR=/tmp/shop-test-uploads \
+            --entrypoint python "$IMAGE_BASE-api:$GITHUB_SHA" -m pytest tests -q
+      # frontend/Dockerfile runs pnpm build. The package.json test script currently
+      # references a missing tests/rendered-html.test.mjs, so do not invoke it here.
+      - name: Publish tested images to GHCR
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE_BASE-api:$GITHUB_SHA"
+          docker push "$IMAGE_BASE-frontend:$GITHUB_SHA"
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH and deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/srv/shop' }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_HOST:?Set DEPLOY_HOST secret}"
+          : "${DEPLOY_USER:?Set DEPLOY_USER secret}"
+          : "${DEPLOY_SSH_KEY:?Set DEPLOY_SSH_KEY secret}"
+          : "${DEPLOY_KNOWN_HOSTS:?Set DEPLOY_KNOWN_HOSTS secret}"
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]
+          [[ "$DEPLOY_PATH" =~ ^/[a-zA-Z0-9/_-]+$ ]]
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/shop_deploy"
+          chmod 600 "$HOME/.ssh/shop_deploy"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          ssh_options=(-i "$HOME/.ssh/shop_deploy" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          release="$DEPLOY_PATH/releases/$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          trap 'rm -f "$HOME/.ssh/shop_deploy"' EXIT
+          ssh "${ssh_options[@]}" -p "$DEPLOY_PORT" "$target" "mkdir -p '$release'"
+          scp "${ssh_options[@]}" -P "$DEPLOY_PORT" \
+            deploy/compose.yml deploy/deploy.sh "$target:$release/"
+          image_base="ghcr.io/${REPOSITORY,,}"
+          ssh "${ssh_options[@]}" -p "$DEPLOY_PORT" "$target" \
+            "bash '$release/deploy.sh' '$DEPLOY_PATH' '$image_base' '$GITHUB_SHA'"

@@ -13,7 +13,17 @@ def utcnow() -> datetime:
 
 class User(Base):
     __tablename__ = "users"; __table_args__ = {"schema": "shop"}
-    id: Mapped[int] = mapped_column(primary_key=True); username: Mapped[str] = mapped_column(unique=True); password_hash: Mapped[str]; role: Mapped[str] = mapped_column(default="customer"); status: Mapped[str] = mapped_column(default="active"); created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    id: Mapped[int] = mapped_column(primary_key=True); username: Mapped[str] = mapped_column(unique=True); email: Mapped[str] = mapped_column(); password_hash: Mapped[str]; role: Mapped[str] = mapped_column(default="customer"); status: Mapped[str] = mapped_column(default="active"); token_version: Mapped[int] = mapped_column(default=0); created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"; __table_args__ = {"schema": "shop"}
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("shop.users.id"))
+    token_hash: Mapped[str] = mapped_column(unique=True)
+    expires_at: Mapped[datetime]
+    used_at: Mapped[datetime | None]
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
 class DefaultAddress(Base):
