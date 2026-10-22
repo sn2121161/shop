@@ -104,6 +104,8 @@ Settings → Secrets and variables → Actions，添加以下 Repository secrets
 
 发布顺序：构建 → 后端测试 → 推送 SHA 镜像 → 校验服务器配置/卷 → 拉镜像 → 校验邮件配置 → pg_dump 备份 → migration → 替换 api/frontend → API、前端代理和首页健康检查。
 
+服务器部署任务的超时时间为 120 分钟，为首次从 GHCR 下载大镜像留出时间；构建任务仍为 30 分钟。镜像下载完成后才会执行数据库备份、迁移和应用更新。
+
 工作流串行部署，服务器还有 flock 锁。备份位于 `/srv/shop/backups`，成功版本记录在 `/srv/shop/deployed-sha`，`/srv/shop/current` 指向成功发布目录。首次上线前也应备份上传文件；脚本只自动备份数据库。备份和旧镜像不自动清理，需要设置保留策略以免占满磁盘。
 
 前端 Docker 构建就是当前前端校验；`pnpm test` 引用的 `tests/rendered-html.test.mjs` 在当前项目中不存在，暂未加入 CI。健康检查不代表邮箱投递成功，上线后需用自己的账号实测忘记密码流程。
