@@ -1,39 +1,102 @@
 from decimal import Decimal
+from datetime import datetime, timedelta, timezone
+import hashlib
 import re
+import secrets
 
 import bleach
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .config import CARD_CIPHER
+from .config import CARD_CIPHER, FRONTEND_URL
 from .database import get_session
-from .models import AuditLog, CartItem, Comment, CommentImage, DefaultAddress, Inventory, Order, OrderFulfillment, OrderItem, OrderNotification, PaymentMethod, Product, User
+from .models import AuditLog, CartItem, Comment, CommentImage, DefaultAddress, Inventory, Order, OrderFulfillment, OrderItem, OrderNotification, PasswordResetToken, PaymentMethod, Product, User
 from .notifications import deliver_order_notification
-from .schemas import AddressInput, CardInput, CartInput, CommentInput, LoginInput, OrderInput, RegisterInput, UpdateCartInput
+from .password_reset_email import send_password_reset_email
+from .schemas import AddressInput, CardInput, CartInput, CommentInput, LoginInput, OrderInput, PasswordResetInput, PasswordResetRequestInput, RegisterInput, UpdateCartInput
 from .security import active_user, card_fingerprint, issue_token, normalized_card_number
 from .services import COMMENT_CLEANER, PASSWORD_RE, cart_payload, save_comment_image
 
 router = APIRouter(prefix="/api")
+EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+RESET_WINDOW = timedelta(minutes=30)
+
+
+def normalized_email(value: str) -> str:
+    email = value.strip().lower()
+    if not EMAIL_RE.fullmatch(email):
+        raise HTTPException(400, "请输入有效的邮箱地址")
+    return email
+
+
+def token_digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 @router.post("/auth/register", status_code=status.HTTP_201_CREATED)
 def register(data: RegisterInput, session: Session = Depends(get_session)):
     username = data.username.strip()
+    email = normalized_email(data.email)
     if len(username) < 3 or not re.fullmatch(r"[A-Za-z0-9_]+", username): raise HTTPException(400, "账号须为至少 3 位的字母、数字或下划线")
     if data.password != data.confirmPassword or not PASSWORD_RE.fullmatch(data.password): raise HTTPException(400, "密码至少 9 位，且包含大小写字母、数字和特殊字符；两次输入必须一致")
     if session.scalar(select(User).where(User.username == username)): raise HTTPException(409, "该账号已被注册")
-    session.add(User(username=username, password_hash=generate_password_hash(data.password))); session.commit()
+    if session.scalar(select(User).where(func.lower(User.email) == email)): raise HTTPException(409, "该邮箱已被注册")
+    session.add(User(username=username, email=email, password_hash=generate_password_hash(data.password))); session.commit()
     return {"message": "注册成功"}
 
 
 @router.post("/auth/login")
 def login(data: LoginInput, session: Session = Depends(get_session)):
-    user = session.scalar(select(User).where(User.username == data.username))
-    if not user or not check_password_hash(user.password_hash, data.password): raise HTTPException(401, "账号或密码错误")
+    identifier = data.username.strip()
+    user = session.scalar(select(User).where(User.username == identifier))
+    if not user:
+        email_matches = session.scalars(select(User).where(func.lower(User.email) == identifier.lower())).all()
+        user = next((candidate for candidate in email_matches if check_password_hash(candidate.password_hash, data.password)), None)
+    if not user or not check_password_hash(user.password_hash, data.password): raise HTTPException(401, "账号、邮箱或密码错误")
     if user.status == "disabled": raise HTTPException(403, "该用户已停用")
-    return {"token": issue_token(user.id), "user": {"id": user.id, "username": user.username, "role": user.role}}
+    return {"token": issue_token(user), "user": {"id": user.id, "username": user.username, "role": user.role}}
+
+
+@router.post("/auth/forgot-password")
+def forgot_password(data: PasswordResetRequestInput, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+    email = normalized_email(data.email)
+    users = session.scalars(select(User).where(func.lower(User.email) == email, User.status == "active")).all()
+    now = datetime.now(timezone.utc)
+    deliveries: list[tuple[str, str, str]] = []
+    for user in users:
+        for stale_token in session.scalars(select(PasswordResetToken).where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))):
+            stale_token.used_at = now
+        raw_token = secrets.token_urlsafe(32)
+        session.add(PasswordResetToken(user_id=user.id, token_hash=token_digest(raw_token), expires_at=now + RESET_WINDOW))
+        deliveries.append((user.email, user.username, f"{FRONTEND_URL}/reset-password?token={raw_token}"))
+    session.commit()
+    for recipient, username, reset_url in deliveries:
+        background_tasks.add_task(send_password_reset_email, recipient, username, reset_url)
+    # This response is intentionally identical for unknown, disabled, and known accounts.
+    return {"message": "如该邮箱已注册，重置链接将在几分钟内发送，请查收邮件。"}
+
+
+@router.post("/auth/reset-password")
+def reset_password(data: PasswordResetInput, session: Session = Depends(get_session)):
+    if data.newPassword != data.confirmPassword or not PASSWORD_RE.fullmatch(data.newPassword):
+        raise HTTPException(400, "密码至少 9 位，且包含大小写字母、数字和特殊字符；两次输入必须一致")
+    reset_token = session.scalar(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_digest(data.token)))
+    now = datetime.now(timezone.utc)
+    if not reset_token or reset_token.used_at is not None or reset_token.expires_at.replace(tzinfo=timezone.utc) < now:
+        raise HTTPException(400, "重置链接无效或已过期，请重新申请")
+    user = session.get(User, reset_token.user_id)
+    if not user:
+        raise HTTPException(400, "重置链接无效或已过期，请重新申请")
+    user.password_hash = generate_password_hash(data.newPassword)
+    user.token_version += 1
+    reset_token.used_at = now
+    for other_token in session.scalars(select(PasswordResetToken).where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None), PasswordResetToken.id != reset_token.id)):
+        other_token.used_at = now
+    session.add(AuditLog(user_id=user.id, action="password_reset", detail="password reset by email", target_type="user", target_id=user.id))
+    session.commit()
+    return {"message": "密码已重置，请使用新密码登录"}
 
 
 @router.get("/auth/me")

@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from urllib.parse import parse_qs, urlparse
 
 from app import create_app
 
@@ -11,7 +12,7 @@ def client(tmp_path):
 
 
 def register_and_login(client):
-    payload = {"username": "molecule_user", "password": "StrongPass1!", "confirmPassword": "StrongPass1!"}
+    payload = {"username": "molecule_user", "email": "molecule_user@example.com", "password": "StrongPass1!", "confirmPassword": "StrongPass1!"}
     assert client.post("/api/auth/register", json=payload).status_code == 201
     return client.post("/api/auth/login", json={"username": payload["username"], "password": payload["password"]}).json()["token"]
 
@@ -23,9 +24,40 @@ def admin_headers(client):
 
 
 def test_registration_rejects_weak_password(client):
-    response = client.post("/api/auth/register", json={"username": "test_user", "password": "weak", "confirmPassword": "weak"})
+    response = client.post("/api/auth/register", json={"username": "test_user", "email": "test_user@example.com", "password": "weak", "confirmPassword": "weak"})
     assert response.status_code == 400
     assert response.json()["message"].startswith("密码至少")
+
+
+def test_registration_requires_a_unique_email(client):
+    payload = {"username": "email_user", "email": "email_user@example.com", "password": "StrongPass1!", "confirmPassword": "StrongPass1!"}
+    assert client.post("/api/auth/register", json=payload).status_code == 201
+    assert client.post("/api/auth/register", json={**payload, "username": "other_user"}).status_code == 409
+    assert client.post("/api/auth/register", json={key: value for key, value in payload.items() if key != "email"}).status_code == 422
+
+
+def test_login_accepts_a_registered_email(client):
+    payload = {"username": "email_login_user", "email": "email_login_user@example.com", "password": "StrongPass1!", "confirmPassword": "StrongPass1!"}
+    assert client.post("/api/auth/register", json=payload).status_code == 201
+    response = client.post("/api/auth/login", json={"username": "EMAIL_LOGIN_USER@EXAMPLE.COM", "password": payload["password"]})
+    assert response.status_code == 200
+    assert response.json()["user"]["username"] == payload["username"]
+
+
+def test_password_reset_is_single_use_and_invalidates_existing_login(client, monkeypatch):
+    token = register_and_login(client)
+    delivered = []
+    monkeypatch.setattr("shop_api.routers.send_password_reset_email", lambda recipient, username, url: delivered.append((recipient, username, url)))
+    response = client.post("/api/auth/forgot-password", json={"email": "molecule_user@example.com"})
+    assert response.status_code == 200
+    assert delivered and delivered[0][0] == "molecule_user@example.com"
+    reset_token = parse_qs(urlparse(delivered[0][2]).query)["token"][0]
+    reset = client.post("/api/auth/reset-password", json={"token": reset_token, "newPassword": "NewStrongPass1!", "confirmPassword": "NewStrongPass1!"})
+    assert reset.status_code == 200
+    assert client.get("/api/cart", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "molecule_user", "password": "StrongPass1!"}).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "molecule_user", "password": "NewStrongPass1!"}).status_code == 200
+    assert client.post("/api/auth/reset-password", json={"token": reset_token, "newPassword": "OtherStrong1!", "confirmPassword": "OtherStrong1!"}).status_code == 400
 
 
 def test_products_endpoint_allows_the_frontend_dev_origin(client):

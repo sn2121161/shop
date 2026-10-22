@@ -15,11 +15,16 @@ from .models import User
 security = HTTPBearer(auto_error=False)
 
 
-def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> int:
+def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(security), session: Session = Depends(get_session)) -> int:
     if not credentials:
         raise HTTPException(401, "请先登录")
     try:
-        return int(jwt.decode(credentials.credentials, JWT_SECRET, algorithms=["HS256"])["sub"])
+        claims = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=["HS256"])
+        user_id = int(claims["sub"])
+        user = session.get(User, user_id)
+        if not user or claims.get("ver") != user.token_version:
+            raise HTTPException(401, "请先登录")
+        return user_id
     except (jwt.PyJWTError, KeyError, ValueError) as error:
         raise HTTPException(401, "请先登录") from error
 
@@ -40,8 +45,8 @@ def current_admin(user_id: int = Depends(active_user), session: Session = Depend
     return user_id
 
 
-def issue_token(user_id: int) -> str:
-    return jwt.encode({"sub": str(user_id), "exp": datetime.now(timezone.utc) + timedelta(hours=12)}, JWT_SECRET, algorithm="HS256")
+def issue_token(user: User) -> str:
+    return jwt.encode({"sub": str(user.id), "ver": user.token_version, "exp": datetime.now(timezone.utc) + timedelta(hours=12)}, JWT_SECRET, algorithm="HS256")
 
 
 def normalized_card_number(card_number: str) -> str:

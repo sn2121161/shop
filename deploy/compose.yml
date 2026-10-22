@@ -1,0 +1,42 @@
+# Standalone production definition. Reuses the existing project and volumes.
+name: ${SHOP_COMPOSE_PROJECT:?Set existing Compose project name}
+services:
+  db:
+    image: postgres:16
+    env_file: ${SHOP_ENV_FILE:?Set absolute production env file path}
+    volumes:
+      - shop_postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 1024m
+    pids_limit: 100
+  api:
+    image: ${SHOP_IMAGE_BASE:?}-api:${SHOP_IMAGE_TAG:?}
+    env_file: ${SHOP_ENV_FILE:?}
+    environment:
+      AUTO_CREATE_SCHEMA: "false"
+      SEED_DEMO_DATA: "false"
+      COMMENT_UPLOAD_DIR: /app/uploads
+    ports:
+      - "127.0.0.1:5600:5600"
+    volumes:
+      - shop_uploads:/app/uploads
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 768m
+    pids_limit: 100
+  frontend:
+    image: ${SHOP_IMAGE_BASE:?}-frontend:${SHOP_IMAGE_TAG:?}
+    ports:
+      - "${SHOP_FRONTEND_BIND:-127.0.0.1}:3000:3000"
+    restart: unless-stopped
+    cpus: 0.25
+    mem_limit: 384m
+    pids_limit: 100
+volumes:
+  shop_postgres:
+    external: true
+    name: ${SHOP_DB_VOLUME:?Set actual existing PostgreSQL volume name}
+  shop_uploads:
+    external: true
+    name: ${SHOP_UPLOAD_VOLUME:?Set actual existing uploads volume name}

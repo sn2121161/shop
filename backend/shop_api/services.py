@@ -45,7 +45,7 @@ def seed_database(sessions: sessionmaker[Session], admin_password: str = "Admin@
         admin = session.scalar(select(User).where(User.username == "admin"))
         if not admin:
             # The requested bootstrap credential is hashed and never exposed by an API.
-            session.add(User(username="admin", password_hash=generate_password_hash(admin_password), role="admin"))
+            session.add(User(username="admin", email="1136205530@qq.com", password_hash=generate_password_hash(admin_password), role="admin"))
             session.commit()
         if not session.scalar(select(Product.id).limit(1)):
             for name, price, tagline, story in PRODUCTS:
@@ -55,7 +55,7 @@ def seed_database(sessions: sessionmaker[Session], admin_password: str = "Admin@
         reviewers = {}
         for username in ("structure_lover", "quiet_maker", "blue_molecule"):
             reviewer = session.scalar(select(User).where(User.username == username))
-            if not reviewer: reviewer = User(username=username, password_hash=generate_password_hash(uuid4().hex)); session.add(reviewer); session.flush()
+            if not reviewer: reviewer = User(username=username, email="nizhengwen@126.com", password_hash=generate_password_hash(uuid4().hex)); session.add(reviewer); session.flush()
             reviewers[username] = reviewer
         for product_name, username, content in (("苯", "structure_lover", "<p><strong>苯环的线条很干净</strong>，金属边缘在光线下特别有层次。</p>"), ("血清素", "quiet_maker", "<p><span style=\"color:#265842\">血清素这件很温柔</span>，日常搭配也不会太张扬。</p>"), ("可卡因", "blue_molecule", "<p><em>把复杂结构做成首饰很有意思</em>，深蓝色细节让轮廓更清楚。</p>")):
             product = session.scalar(select(Product).where(Product.name == product_name))

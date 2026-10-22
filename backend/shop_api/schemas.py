@@ -4,11 +4,21 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class RegisterInput(BaseModel):
-    username: str; password: str; confirmPassword: str
+    username: str; email: str; password: str; confirmPassword: str
 
 
 class LoginInput(BaseModel):
     username: str; password: str
+
+
+class PasswordResetRequestInput(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+class PasswordResetInput(BaseModel):
+    token: str = Field(min_length=20, max_length=512)
+    newPassword: str
+    confirmPassword: str
 
 
 class CartInput(BaseModel):
