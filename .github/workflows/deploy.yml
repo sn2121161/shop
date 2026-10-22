@@ -62,7 +62,8 @@ jobs:
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Allow slow first-time image downloads from GHCR to the production server.
+    timeout-minutes: 120
     environment: production
     steps:
       - uses: actions/checkout@v4
