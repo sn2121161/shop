@@ -156,7 +156,7 @@ python -m pytest backend/tests -q
 
 ## GitHub 自动部署
 
-合并到 `main` 后自动测试、构建 GHCR 镜像并部署服务器。首次使用前，按 [部署配置说明](deploy/README.md) 设置 GitHub Secrets 和服务器 `deploy.env`，并在服务器现有 `.env` 中补齐忘记密码邮件配置。工作流不会上传或覆盖本地/生产 `.env`。
+合并到 `main` 后自动测试、构建镜像，通过 SSH 直接上传镜像压缩包并部署服务器，无需 GHCR。首次使用前，按 [部署配置说明](deploy/README.md) 设置 GitHub Secrets 和服务器 `deploy.env`，并在服务器现有 `.env` 中补齐忘记密码邮件配置。工作流不会上传或覆盖本地/生产 `.env`。
 
 当前新增 migration 会改写旧用户邮箱，合并前请阅读部署说明中的 migration 提示。
 

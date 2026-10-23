@@ -12,6 +12,7 @@ services:
     pids_limit: 100
   api:
     image: ${SHOP_IMAGE_BASE:?}-api:${SHOP_IMAGE_TAG:?}
+    pull_policy: never
     env_file: ${SHOP_ENV_FILE:?}
     environment:
       AUTO_CREATE_SCHEMA: "false"
@@ -27,6 +28,7 @@ services:
     pids_limit: 100
   frontend:
     image: ${SHOP_IMAGE_BASE:?}-frontend:${SHOP_IMAGE_TAG:?}
+    pull_policy: never
     ports:
       - "${SHOP_FRONTEND_BIND:-127.0.0.1}:3000:3000"
     restart: unless-stopped

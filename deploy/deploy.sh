@@ -32,9 +32,26 @@ actual_upload_volume=$(docker inspect --format '{{range .Mounts}}{{if eq .Destin
 }
 docker volume inspect "$SHOP_DB_VOLUME" "$SHOP_UPLOAD_VOLUME" >/dev/null
 
+# Verify the complete upload before loading anything. Never fall back to GHCR.
+(
+  cd "$release_dir"
+  sha256sum --check SHA256SUMS
+)
+docker image load --input "$release_dir/images.tar.gz"
+for service in api frontend; do
+  expected_id=$(cat "$release_dir/$service-image.id")
+  [[ "$expected_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+  image="$SHOP_IMAGE_BASE-$service:$SHOP_IMAGE_TAG"
+  actual_id=$(docker image inspect --format '{{.Id}}' "$image")
+  architecture=$(docker image inspect --format '{{.Architecture}}' "$image")
+  revision=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")
+  [[ "$actual_id" == "$expected_id" && "$architecture" == amd64 && "$revision" == "$SHOP_IMAGE_TAG" ]] || {
+    echo "Imported $service image does not match the tested release; stopped before migration." >&2; exit 1;
+  }
+done
+
 # Check the newly required mail configuration without printing any secret values.
-"${compose[@]}" pull api frontend
-"${compose[@]}" run --rm --no-deps api python -c '
+"${compose[@]}" run --rm --no-deps --pull never api python -c '
 import os
 required = ("FRONTEND_URL", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_STARTTLS")
 missing = [name for name in required if not os.getenv(name)]
@@ -60,9 +77,9 @@ frontend_id=$("${compose[@]}" ps -q frontend)
 if [[ -n "$frontend_id" ]]; then
   docker inspect --format '{{.Config.Image}}' "$frontend_id" > "$release_dir/previous-frontend-image.txt"
 fi
-"${compose[@]}" run --rm --no-deps api alembic upgrade head
+"${compose[@]}" run --rm --no-deps --pull never api alembic upgrade head
 # Force recreation also reloads edits to the server env file for the same SHA.
-"${compose[@]}" up -d --no-deps --force-recreate api frontend
+"${compose[@]}" up -d --no-deps --pull never --force-recreate api frontend
 
 healthy=false
 for attempt in {1..30}; do
@@ -81,4 +98,6 @@ if [[ "$healthy" != true ]]; then
 fi
 printf '%s\n' "$SHOP_IMAGE_TAG" > "$deploy_root/deployed-sha"
 ln -sfn "$release_dir" "$deploy_root/current"
+# Retain manifests and rollback records, but reclaim the large transfer archive.
+rm -- "$release_dir/images.tar.gz"
 echo "Deployed $SHOP_IMAGE_TAG successfully. Database backup: $backup"
