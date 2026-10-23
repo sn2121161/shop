@@ -1,12 +1,12 @@
 # GitHub Actions 自动部署
 
-工作流：PR 到 `main` 时构建前后端并运行后端测试；合并或直接推送到 `main` 后，发布 GHCR 镜像并通过 SSH 部署。也可以在 Actions 页面手动运行（选择 `main`）。仅构建 Linux amd64 镜像，适用于 x86_64 服务器。
+工作流：PR 到 `main` 时构建前后端并运行后端测试；合并或直接推送到 `main` 后，重新构建并测试合并提交，然后将镜像压缩包通过 SSH 直接上传服务器部署。也可以在 Actions 页面手动运行（选择 `main`）。仅构建 Linux amd64 镜像，适用于 x86_64 服务器。
 
 不会自动提交、推送、合并代码。不会上传开发机 `.env`。上线可能有短暂中断，这不是零停机部署。
 
 ## 1. 在服务器准备一次
 
-前提：现有 shop 的 db/api/frontend 已通过 Docker Compose 启动；部署账号可以直接运行 Docker，安装了 Compose v2、Bash、curl、gzip、flock。SSH 必须能被 GitHub 托管 runner 访问。服务器需要能拉取 ghcr.io 镜像；这里不接管 Apache、域名和证书配置。
+前提：现有 shop 的 db/api/frontend 已通过 Docker Compose 启动；部署账号可以直接运行 Docker，安装了 Compose v2、Bash、curl、gzip、flock、rsync、sha256sum。SSH 必须能被 GitHub 托管 runner 访问。服务器无需访问 GHCR；这里不接管 Apache、域名和证书配置。
 
 以下示例部署目录是 `/srv/shop`，按实际路径替换。部署账号必须有写入权限。
 
@@ -44,16 +44,7 @@ chmod 600 /srv/shop/deploy.env
 chmod 600 /srv/shop/backend/.env
 ```
 
-私有 GHCR 镜像需要在服务器上、以同一个部署账号登录一次。使用具有 `read:packages` 权限的 GitHub PAT (classic)，不要把 token 写入项目：
-
-```bash
-read -rsp 'GHCR read token: ' ghcr_read_token
-printf '\n'
-printf '%s' "$ghcr_read_token" | docker login ghcr.io -u <GitHub用户名> --password-stdin
-unset ghcr_read_token
-```
-
-如果镜像明确设为 public，则不需要服务器登录。首次发布的 GHCR 包默认 private。工作流推送镜像使用 GitHub 自动生成的 `GITHUB_TOKEN`，不需要另外配置推送 PAT。
+当前使用 SSH 直接传镜像，不需要登录 GHCR、购买腾讯云镜像仓库或配置 REGISTRY_USERNAME/REGISTRY_PASSWORD。镜像使用本地名称 `shop-release-api:<提交SHA>` 和 `shop-release-frontend:<提交SHA>`。GitHub 负责代码版本、测试与部署触发，SSH 负责运输镜像。
 
 ## 2. 忘记密码的生产环境变量
 
@@ -96,17 +87,19 @@ Settings → Secrets and variables → Actions，添加以下 Repository secrets
 
 可选 Repository variables：`DEPLOY_PORT`（默认 `22`）、`DEPLOY_PATH`（默认 `/srv/shop`）。路径只支持 ASCII 字母、数字、下划线、连字符、斜杠。
 
-如果仓库限制了 Actions 的 token 权限，需要允许工作流的 `packages: write`。若同名 GHCR 包曾由其他方式创建，需要在包设置中授权本仓库访问。
+工作流仅需 `contents: read`，不再需要 `packages: write`。构建、测试、压缩和上传在同一个 runner 上完成，不使用 GitHub Packages 或 Actions artifact 存放镜像。GitHub Actions 自身的运行额度仍适用。
 
 ## 4. 发布和排错
 
 你自行提交代码并合并到 `main` 后，在仓库 Actions 查看 `Test and deploy shop`。
 
-发布顺序：构建 → 后端测试 → 推送 SHA 镜像 → 校验服务器配置/卷 → 拉镜像 → 校验邮件配置 → pg_dump 备份 → migration → 替换 api/frontend → API、前端代理和首页健康检查。
+发布顺序：构建 → 后端测试 → `docker save` + gzip 压缩 → rsync 经 SSH 上传 → SHA256 校验 → 校验服务器配置/卷 → `docker load` 导入 → 核对镜像 ID、amd64 架构和提交 SHA → 校验邮件配置 → pg_dump 备份 → migration → 替换 api/frontend → API、前端代理和首页健康检查。
 
-服务器部署任务的超时时间为 120 分钟，为首次从 GHCR 下载大镜像留出时间；构建任务仍为 30 分钟。镜像下载完成后才会执行数据库备份、迁移和应用更新。
+PR 构建任务上限为 30 分钟，main 的构建、测试、传输与部署任务总上限为 120 分钟。SSH 上传最多尝试 3 次，每次最多 30 分钟，网络中断后保留部分文件以便下一次尝试继续传输。全部文件校验通过后才会导入和部署。Compose 使用 `pull_policy: never` 和 `--pull never`，缺少镜像就停止，不会回退到远程仓库下载。
 
-工作流串行部署，服务器还有 flock 锁。备份位于 `/srv/shop/backups`，成功版本记录在 `/srv/shop/deployed-sha`，`/srv/shop/current` 指向成功发布目录。首次上线前也应备份上传文件；脚本只自动备份数据库。备份和旧镜像不自动清理，需要设置保留策略以免占满磁盘。
+脚本仍只接受 `ROOT IMAGE_BASE COMMIT_SHA` 三个参数，但现在必须与同一次构建生成的 `images.tar.gz`、`api-image.id`、`frontend-image.id`、`SHA256SUMS`、`compose.yml` 一起放在发布目录中；不能拿旧目录直接调用新版脚本。重跑工作流会生成新的发布目录，断点续传适用于同一任务中的上传重试。
+
+工作流串行部署，服务器还有 flock 锁。备份位于 `/srv/shop/backups`，成功版本记录在 `/srv/shop/deployed-sha`，`/srv/shop/current` 指向成功发布目录。成功后删除此次镜像压缩包，保留校验清单、镜像 ID 和回滚记录；失败时保留压缩包用于排错。首次上线前也应备份上传文件；脚本只自动备份数据库。备份、失败发布包和旧镜像需要设置保留策略以免占满磁盘。
 
 前端 Docker 构建就是当前前端校验；`pnpm test` 引用的 `tests/rendered-html.test.mjs` 在当前项目中不存在，暂未加入 CI。健康检查不代表邮箱投递成功，上线后需用自己的账号实测忘记密码流程。
 
@@ -128,12 +121,12 @@ services:
 set -a
 source /srv/shop/deploy.env
 set +a
-export SHOP_IMAGE_BASE=ghcr.io/sn2121161/shop
+export SHOP_IMAGE_BASE=shop-release
 export SHOP_IMAGE_TAG=<失败发布的40位SHA>
 docker compose --env-file /srv/shop/deploy.env \
   -f /srv/shop/releases/<发布目录>/compose.yml \
   -f /srv/shop/releases/<发布目录>/rollback.yml \
-  up -d --no-deps --force-recreate api frontend
+  up -d --no-deps --pull never --force-recreate api frontend
 ```
 
 回滚后重新检查 API、页面、业务功能。不要执行 `down -v` 或自动 `alembic downgrade`。此脚本用于现有商城升级，首次建库和从备份恢复需要独立处理。

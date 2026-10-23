@@ -15,59 +15,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # PRs have no production environment or deployment credentials.
   build:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
-      - name: Build images (Linux amd64)
-        env:
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          image_base="ghcr.io/${REPOSITORY,,}"
-          echo "IMAGE_BASE=$image_base" >> "$GITHUB_ENV"
-          docker build --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
-            -t "$image_base-api:$GITHUB_SHA" ./backend
-          docker build --build-arg NEXT_PUBLIC_API_URL=/api \
-            --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
-            -t "$image_base-frontend:$GITHUB_SHA" ./frontend
-      - name: Run backend tests with isolated test configuration
-        run: |
-          set -euo pipefail
-          test_key=$(docker run --rm --entrypoint python "$IMAGE_BASE-api:$GITHUB_SHA" \
-            -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
-          docker run --rm \
-            -e PAYMENT_ENCRYPTION_KEY="$test_key" \
-            -e DATABASE_URL=sqlite:// -e AUTO_CREATE_SCHEMA=true -e SEED_DEMO_DATA=true \
-            -e ADMIN_BOOTSTRAP_PASSWORD=Admin@123 \
-            -e COMMENT_UPLOAD_DIR=/tmp/shop-test-uploads \
-            --entrypoint python "$IMAGE_BASE-api:$GITHUB_SHA" -m pytest tests -q
-      # frontend/Dockerfile runs pnpm build. The package.json test script currently
-      # references a missing tests/rendered-html.test.mjs, so do not invoke it here.
-      - name: Publish tested images to GHCR
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker push "$IMAGE_BASE-api:$GITHUB_SHA"
-          docker push "$IMAGE_BASE-frontend:$GITHUB_SHA"
+      - name: Build images and run backend tests
+        run: bash deploy/build-and-test.sh
 
+  # Build, test, and transfer on one runner: no registry or artifact storage.
   deploy:
-    needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Allow slow first-time image downloads from GHCR to the production server.
     timeout-minutes: 120
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Configure SSH and deploy
+      - name: Build images and run backend tests
+        run: bash deploy/build-and-test.sh
+      - name: Pack tested images and record checksums
+        run: |
+          set -euo pipefail
+          mkdir -p bundle
+          docker image save "shop-release-api:$GITHUB_SHA" "shop-release-frontend:$GITHUB_SHA" \
+            | gzip -1 > bundle/images.tar.gz
+          docker image inspect --format '{{.Id}}' "shop-release-api:$GITHUB_SHA" > bundle/api-image.id
+          docker image inspect --format '{{.Id}}' "shop-release-frontend:$GITHUB_SHA" > bundle/frontend-image.id
+          cp deploy/compose.yml deploy/deploy.sh bundle/
+          (cd bundle && sha256sum images.tar.gz api-image.id frontend-image.id compose.yml deploy.sh > SHA256SUMS)
+          du -h bundle/images.tar.gz
+      - name: Upload images over SSH and deploy
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -75,7 +54,6 @@ jobs:
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/srv/shop' }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           : "${DEPLOY_HOST:?Set DEPLOY_HOST secret}"
@@ -90,13 +68,25 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/shop_deploy"
           chmod 600 "$HOME/.ssh/shop_deploy"
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          ssh_options=(-i "$HOME/.ssh/shop_deploy" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15)
+          ssh_options=(-i "$HOME/.ssh/shop_deploy" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3)
           target="$DEPLOY_USER@$DEPLOY_HOST"
           release="$DEPLOY_PATH/releases/$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           trap 'rm -f "$HOME/.ssh/shop_deploy"' EXIT
-          ssh "${ssh_options[@]}" -p "$DEPLOY_PORT" "$target" "mkdir -p '$release'"
-          scp "${ssh_options[@]}" -P "$DEPLOY_PORT" \
-            deploy/compose.yml deploy/deploy.sh "$target:$release/"
-          image_base="ghcr.io/${REPOSITORY,,}"
           ssh "${ssh_options[@]}" -p "$DEPLOY_PORT" "$target" \
-            "bash '$release/deploy.sh' '$DEPLOY_PATH' '$image_base' '$GITHUB_SHA'"
+            "command -v rsync >/dev/null && command -v sha256sum >/dev/null && mkdir -p '$release' && chmod 700 '$release'"
+          # Preserve partial bytes and resume using rsync's delta transfer.
+          transport="ssh -i $HOME/.ssh/shop_deploy -p $DEPLOY_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
+          uploaded=false
+          for attempt in 1 2 3; do
+            echo "SSH upload attempt $attempt/3"
+            if timeout --signal=TERM --kill-after=15s 30m \
+              rsync -rt --partial --inplace --timeout=120 --info=progress2 \
+              -e "$transport" bundle/ "$target:$release/"; then
+              uploaded=true
+              break
+            fi
+            if [[ "$attempt" != 3 ]]; then sleep 10; fi
+          done
+          [[ "$uploaded" == true ]] || { echo 'SSH upload failed; running services were not replaced.' >&2; exit 1; }
+          ssh "${ssh_options[@]}" -p "$DEPLOY_PORT" "$target" \
+            "cd '$release' && sha256sum --check SHA256SUMS && bash ./deploy.sh '$DEPLOY_PATH' shop-release '$GITHUB_SHA'"
