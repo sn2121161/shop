@@ -1,0 +1,17 @@
+# Keep the existing dependency cache; never use this tag for a running service.
+ARG FRONTEND_BUILD_BASE=shop-build-frontend:bootstrap
+FROM ${FRONTEND_BUILD_BASE}
+USER root
+WORKDIR /app
+# Preserve only node_modules; remove old routes, output and configuration files.
+RUN find /app -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ENV COREPACK_NPM_REGISTRY=$NPM_REGISTRY
+RUN corepack enable && CI=true pnpm install --frozen-lockfile --prefer-offline --registry="$NPM_REGISTRY"
+COPY . ./
+ARG NEXT_PUBLIC_API_URL=/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+RUN NODE_OPTIONS=--max-old-space-size=1024 pnpm build
+EXPOSE 3000
+CMD ["pnpm", "start", "--", "--host", "0.0.0.0", "--port", "3000"]

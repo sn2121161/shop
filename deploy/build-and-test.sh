@@ -4,7 +4,7 @@ set -euo pipefail
 : "${GITHUB_SHA:?Set GITHUB_SHA to the commit being built}"
 : "${GITHUB_REPOSITORY:?Set GITHUB_REPOSITORY}"
 [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
-python3 -m unittest discover -s deploy/tests -v
+python3 -m unittest discover -s tests/deployment -v
 image_base=shop-release
 labels=(--label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" --label "org.opencontainers.image.revision=$GITHUB_SHA")
 docker build --platform linux/amd64 "${labels[@]}" -t "$image_base-api:$GITHUB_SHA" ./backend
