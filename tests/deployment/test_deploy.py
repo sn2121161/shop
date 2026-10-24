@@ -6,12 +6,14 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import tarfile
+import io
+import importlib.util
 import unittest
 
 
-DEPLOY = Path(__file__).resolve().parents[1]
+DEPLOY = Path(__file__).resolve().parents[2] / "deploy"
 SHA = "a" * 40
-IMAGE_ID = "sha256:" + "b" * 64
 
 
 class DeploymentTests(unittest.TestCase):
@@ -21,12 +23,12 @@ class DeploymentTests(unittest.TestCase):
         self.root = Path(self.temp.name).resolve()
         self.release = self.root / "release"
         self.release.mkdir()
-        for name in ("deploy.sh", "compose.yml"):
+        for name in ("deploy.sh", "compose.yml", "build-on-server.sh", "unpack-source.py"):
             shutil.copyfile(DEPLOY / name, self.release / name)
-        (self.release / "images.tar.gz").write_bytes(b"mock image archive")
-        for service in ("api", "frontend"):
-            (self.release / f"{service}-image.id").write_text(IMAGE_ID + "\n")
-        names = ("images.tar.gz", "api-image.id", "frontend-image.id", "compose.yml", "deploy.sh")
+        with tarfile.open(self.release / "source.tar.gz", "w:gz") as archive:
+            for name in ("backend/requirements.txt", "frontend/package.json"):
+                archive.addfile(tarfile.TarInfo(name), io.BytesIO(b""))
+        names = ("source.tar.gz", "compose.yml", "deploy.sh", "build-on-server.sh", "unpack-source.py")
         (self.release / "SHA256SUMS").write_text("".join(
             f"{hashlib.sha256((self.release / name).read_bytes()).hexdigest()}  {name}\n"
             for name in names
@@ -53,11 +55,13 @@ if name == "curl": sys.exit(mode == "health-fail")
 if name != "docker": sys.exit(0)
 if "pull" in args or "push" in args:
     raise SystemExit("Unexpected registry access")
-if args[:2] == ["image", "load"]:
-    sys.exit(mode == "load-fail")
+if args[0] == "build": sys.exit(mode == "build-fail")
+if args[0] == "run" and "pytest" in args: sys.exit(mode == "server-tests-fail")
 if args[:2] == ["image", "inspect"]:
-    fmt = args[3]
-    if ".Id" in fmt: print("sha256:" + ("c" if mode == "wrong-image" else "b") * 64)
+    if "--format" not in args:
+        sys.exit(1 if mode == "seed-bases" else 0)
+    fmt = args[args.index("--format") + 1]
+    if ".Id" in fmt: print("sha256:" + "b" * 64)
     elif ".Architecture" in fmt: print("arm64" if mode == "wrong-architecture" else "amd64")
     else: print(("c" if mode == "wrong-revision" else "a") * 40)
 elif args[0] == "inspect":
@@ -98,40 +102,42 @@ elif args[0] == "compose":
         self.assertFalse(any(name == "docker" and "up" in args for name, args in calls))
         self.assertFalse((self.root / "deployed-sha").exists())
 
-    def test_success_uses_uploaded_images_and_records_release(self):
+    def test_success_builds_source_before_migration_and_records_release(self):
         result, calls = self.run_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
         docker = [args for name, args in calls if name == "docker"]
-        load = next(i for i, args in enumerate(docker) if args[:2] == ["image", "load"])
+        build = next(i for i, args in enumerate(docker) if args[0] == "build")
+        tested = next(i for i, args in enumerate(docker) if args[0] == "run" and "pytest" in args)
         migration = next(i for i, args in enumerate(docker) if "alembic" in args)
         switch = next(i for i, args in enumerate(docker) if "up" in args)
-        self.assertLess(load, migration)
+        self.assertLess(build, tested)
+        self.assertLess(tested, migration)
         self.assertLess(migration, switch)
         for args in docker:
             if args[0] == "compose" and ("run" in args or "up" in args):
                 self.assertEqual(args[args.index("--pull") + 1], "never")
         self.assertEqual((self.root / "deployed-sha").read_text().strip(), SHA)
         self.assertEqual((self.root / "current").resolve(), self.release)
-        self.assertFalse((self.release / "images.tar.gz").exists())
+        self.assertFalse((self.release / "source.tar.gz").exists())
         self.assertEqual(len(list((self.root / "backups").glob("*.sql.gz"))), 1)
 
-    def test_corrupt_archive_stops_before_import(self):
-        (self.release / "images.tar.gz").write_bytes(b"corrupted during transfer")
+    def test_corrupt_archive_stops_before_build(self):
+        (self.release / "source.tar.gz").write_bytes(b"corrupted during transfer")
         result, calls = self.run_deploy()
         self.assert_not_released(result, calls)
-        self.assertFalse(any(args[:2] == ["image", "load"] for _, args in calls))
+        self.assertFalse(any(args[0] == "build" for _, args in calls))
 
-    def test_missing_archive_stops_before_import(self):
-        (self.release / "images.tar.gz").unlink()
+    def test_missing_archive_stops_before_build(self):
+        (self.release / "source.tar.gz").unlink()
         result, calls = self.run_deploy()
         self.assert_not_released(result, calls)
-        self.assertFalse(any(args[:2] == ["image", "load"] for _, args in calls))
+        self.assertFalse(any(args[0] == "build" for _, args in calls))
 
-    def test_image_import_failure_stops_before_migration(self):
-        self.check_failure_before_migration("load-fail")
+    def test_image_build_failure_stops_before_migration(self):
+        self.check_failure_before_migration("build-fail")
 
-    def test_wrong_image_stops_before_migration(self):
-        self.check_failure_before_migration("wrong-image")
+    def test_server_tests_failure_stops_before_migration(self):
+        self.check_failure_before_migration("server-tests-fail")
 
     def test_wrong_architecture_stops_before_migration(self):
         self.check_failure_before_migration("wrong-architecture")
@@ -139,10 +145,16 @@ elif args[0] == "compose":
     def test_wrong_revision_stops_before_migration(self):
         self.check_failure_before_migration("wrong-revision")
 
-    def test_wrong_volume_stops_before_import(self):
+    def test_wrong_volume_stops_before_build(self):
         result, calls = self.run_deploy("wrong-volume")
         self.assert_not_released(result, calls)
-        self.assertFalse(any(args[:2] == ["image", "load"] for _, args in calls))
+        self.assertFalse(any(args[0] == "build" for _, args in calls))
+
+    def test_missing_build_bases_are_seeded_from_existing_containers(self):
+        result, calls = self.run_deploy("seed-bases")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        tags = [args for name, args in calls if name == "docker" and args[:2] == ["image", "tag"]]
+        self.assertEqual({args[-1] for args in tags}, {"shop-build-api:bootstrap", "shop-build-frontend:bootstrap"})
 
     def test_missing_mail_config_stops_before_migration(self):
         self.check_failure_before_migration("mail-fail")
@@ -164,7 +176,7 @@ elif args[0] == "compose":
         self.assertNotEqual(result.returncode, 0)
         self.assertTrue(any(name == "docker" and "up" in args for name, args in calls))
         self.assertFalse((self.root / "deployed-sha").exists())
-        self.assertTrue((self.release / "images.tar.gz").exists())
+        self.assertTrue((self.release / "source.tar.gz").exists())
 
 
 if __name__ == "__main__":

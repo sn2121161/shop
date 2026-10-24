@@ -32,22 +32,22 @@ actual_upload_volume=$(docker inspect --format '{{range .Mounts}}{{if eq .Destin
 }
 docker volume inspect "$SHOP_DB_VOLUME" "$SHOP_UPLOAD_VOLUME" >/dev/null
 
-# Verify the complete upload before loading anything. Never fall back to GHCR.
+# Verify the source upload before building. Never download release images.
 (
   cd "$release_dir"
   sha256sum --check SHA256SUMS
 )
-docker image load --input "$release_dir/images.tar.gz"
+python3 "$release_dir/unpack-source.py" "$release_dir/source.tar.gz" "$release_dir/source"
+bash "$release_dir/build-on-server.sh" "$release_dir" "$SHOP_IMAGE_BASE" "$SHOP_IMAGE_TAG" "$api_id" "$("${compose[@]}" ps -q frontend)"
 for service in api frontend; do
-  expected_id=$(cat "$release_dir/$service-image.id")
-  [[ "$expected_id" =~ ^sha256:[0-9a-f]{64}$ ]]
   image="$SHOP_IMAGE_BASE-$service:$SHOP_IMAGE_TAG"
   actual_id=$(docker image inspect --format '{{.Id}}' "$image")
   architecture=$(docker image inspect --format '{{.Architecture}}' "$image")
   revision=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")
-  [[ "$actual_id" == "$expected_id" && "$architecture" == amd64 && "$revision" == "$SHOP_IMAGE_TAG" ]] || {
-    echo "Imported $service image does not match the tested release; stopped before migration." >&2; exit 1;
+  [[ "$architecture" == amd64 && "$revision" == "$SHOP_IMAGE_TAG" ]] || {
+    echo "Built $service image does not match the release; stopped before migration." >&2; exit 1;
   }
+  printf '%s\n' "$actual_id" > "$release_dir/$service-image.id"
 done
 
 # Check the newly required mail configuration without printing any secret values.
@@ -99,5 +99,5 @@ fi
 printf '%s\n' "$SHOP_IMAGE_TAG" > "$deploy_root/deployed-sha"
 ln -sfn "$release_dir" "$deploy_root/current"
 # Retain manifests and rollback records, but reclaim the large transfer archive.
-rm -- "$release_dir/images.tar.gz"
+rm -- "$release_dir/source.tar.gz"
 echo "Deployed $SHOP_IMAGE_TAG successfully. Database backup: $backup"

@@ -1,0 +1,15 @@
+# Offline bootstrap base, pinned once from the existing API container.
+ARG API_BUILD_BASE=shop-build-api:bootstrap
+FROM ${API_BUILD_BASE}
+USER root
+WORKDIR /app
+# Remove obsolete application files. Python's installed packages remain cached.
+RUN find /app -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+COPY requirements.txt ./
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install --no-cache-dir --index-url "$PIP_INDEX_URL" -r requirements.txt
+COPY . ./
+RUN mkdir -p /app/uploads && chown -R shop:shop /app
+USER shop
+EXPOSE 5600
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5600"]
