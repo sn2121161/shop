@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-html-link-for-pages -- Native navigation avoids the current Vinext Link RSC runtime error. */
+
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Divider, InputNumber, Spin, Tag, message } from "antd";
@@ -11,17 +13,30 @@ import MoleculeCard from "../../components/MoleculeCard";
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product>();
+  const [loadError, setLoadError] = useState("");
+  const [attempt, setAttempt] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const { token, refreshCart, hydrate } = useShop();
   const [notice, holder] = message.useMessage();
   useEffect(() => { hydrate(); }, [hydrate]);
-  useEffect(() => { api.get<Product>(`/products/${id}`).then(({ data }) => setProduct(data)).catch(() => notice.error("商品不存在")); }, [id, notice]);
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    api.get<Product>(`/products/${id}`).then(({ data }) => {
+      if (active) { setProduct(data); setLoadError(""); }
+    }).catch((error: unknown) => {
+      if (active) setLoadError(apiErrorMessage(error, "商品详情暂时无法加载，请稍后重试"));
+    });
+    return () => { active = false; };
+  }, [id, attempt]);
   const add = async () => {
     if (!token) { notice.info("登录后即可加入购物车"); return; }
     try { await api.post("/cart", { productId: product!.id, quantity }); await refreshCart(); notice.success(`已加入购物车 × ${quantity}`); }
     catch (error: unknown) { notice.error(apiErrorMessage(error, "加入购物车失败：后端服务暂不可用")); }
   };
-  if (!product) return <div className="loading"><Spin /></div>;
+  if (!product) return <main className="loading">{holder}{loadError
+    ? <div role="alert"><p>{loadError}</p><Button onClick={() => { setLoadError(""); setAttempt((value) => value + 1); }}>重新加载</Button><p><a href="/">返回首页</a></p></div>
+    : <Spin aria-label="正在加载商品详情" />}</main>;
   const referenceImage = productReferenceImage(product);
   return <main className="detail-page">{holder}<a href="/#collection" className="back-home"><ArrowLeft size={16} /> 返回系列</a>
     <div className="detail-grid"><div className="detail-images">
