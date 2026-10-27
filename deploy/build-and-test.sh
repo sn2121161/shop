@@ -10,7 +10,7 @@ labels=(--label "org.opencontainers.image.source=https://github.com/$GITHUB_REPO
 docker build --platform linux/amd64 "${labels[@]}" -t "$image_base-api:$GITHUB_SHA" ./backend
 # frontend/Dockerfile runs pnpm build. Its package.json test script currently
 # references a missing tests/rendered-html.test.mjs, so do not invoke it here.
-docker build --platform linux/amd64 --build-arg NEXT_PUBLIC_API_URL=/api \
+docker build --platform linux/amd64 \
   "${labels[@]}" -t "$image_base-frontend:$GITHUB_SHA" ./frontend
 
 test_key=$(docker run --rm --entrypoint python "$image_base-api:$GITHUB_SHA" \

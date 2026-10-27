@@ -1,0 +1,149 @@
+{
+  "source": "PubChem / NIH",
+  "retrievedAt": "2026-10-26",
+  "molecules": {
+    "苯": {
+      "cid": 241,
+      "referenceName": "Benzene",
+      "family": "芳香环",
+      "description": "六个碳原子围成一个环，是这件作品六角轮廓的结构参考。",
+      "formula": "C6H6",
+      "molecularWeight": "78.11",
+      "iupacName": "benzene",
+      "image": "/images/molecules/241.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/241"
+    },
+    "尼古丁": {
+      "cid": 89594,
+      "referenceName": "Nicotine",
+      "family": "双环骨架",
+      "description": "两个不同的含氮环通过单键相连，形成有转折的轮廓。",
+      "formula": "C10H14N2",
+      "molecularWeight": "162.23",
+      "iupacName": "3-[(2S)-1-methylpyrrolidin-2-yl]pyridine",
+      "image": "/images/molecules/89594.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/89594"
+    },
+    "血清素": {
+      "cid": 5202,
+      "referenceName": "Serotonin",
+      "family": "稠合双环",
+      "description": "稠合的环系与一条短侧链，构成作品中闭合与延伸的线条。",
+      "formula": "C10H12N2O",
+      "molecularWeight": "176.21",
+      "iupacName": "3-(2-aminoethyl)-1H-indol-5-ol",
+      "image": "/images/molecules/5202.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/5202"
+    },
+    "肾上腺素": {
+      "cid": 5816,
+      "referenceName": "Epinephrine",
+      "family": "芳环与侧链",
+      "description": "环上的取代基和伸出的侧链，让结构拥有不同方向的分支。",
+      "formula": "C9H13NO3",
+      "molecularWeight": "183.20",
+      "iupacName": "4-[(1R)-1-hydroxy-2-(methylamino)ethyl]benzene-1,2-diol",
+      "image": "/images/molecules/5816.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/5816"
+    },
+    "咖啡因": {
+      "cid": 2519,
+      "referenceName": "Caffeine",
+      "family": "含氮双环",
+      "description": "相互连接的含氮环系，带来紧凑而有层次的几何轮廓。",
+      "formula": "C8H10N4O2",
+      "molecularWeight": "194.19",
+      "iupacName": "1,3,7-trimethylpurine-2,6-dione",
+      "image": "/images/molecules/2519.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/2519"
+    },
+    "可卡因": {
+      "cid": 446220,
+      "referenceName": "Cocaine",
+      "family": "多环骨架",
+      "description": "桥环与芳香环形成复杂骨架，卡片用于观察其连接方式。",
+      "formula": "C17H21NO4",
+      "molecularWeight": "303.35",
+      "iupacName": "methyl (1R,2R,3S,5S)-3-benzoyloxy-8-methyl-8-azabicyclo[3.2.1]octane-2-carboxylate",
+      "image": "/images/molecules/446220.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/446220"
+    },
+    "LSD": {
+      "cid": 5761,
+      "referenceName": "Lysergic acid diethylamide",
+      "family": "多环骨架",
+      "description": "多个相连的环与侧链，提供了适合观察的结构层次。",
+      "formula": "C20H25N3O",
+      "molecularWeight": "323.4",
+      "iupacName": "(6aR,9R)-N,N-diethyl-7-methyl-6,6a,8,9-tetrahydro-4H-indolo[4,3-fg]quinoline-9-carboxamide",
+      "image": "/images/molecules/5761.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/5761"
+    },
+    "吗啡": {
+      "cid": 5288826,
+      "referenceName": "Morphine",
+      "family": "稠合多环",
+      "description": "多环相连的骨架，展示了如何将立体连接转译为平面线条。",
+      "formula": "C17H19NO3",
+      "molecularWeight": "285.34",
+      "iupacName": "(4R,4aR,7S,7aR,12bS)-3-methyl-2,4,4a,7,7a,13-hexahydro-1H-4,12-methanobenzofuro[3,2-e]isoquinoline-7,9-diol",
+      "image": "/images/molecules/5288826.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/5288826"
+    },
+    "地巴唑": {
+      "cid": 12132,
+      "referenceName": "Bendazol",
+      "family": "双环与芳环",
+      "description": "含氮环系与另一芳香环通过连接基团相接，形成疏密对比。",
+      "formula": "C14H12N2",
+      "molecularWeight": "208.26",
+      "iupacName": "2-benzyl-1H-benzimidazole",
+      "image": "/images/molecules/12132.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/12132"
+    },
+    "戊巴比妥": {
+      "cid": 4737,
+      "referenceName": "Pentobarbital",
+      "family": "环与分支",
+      "description": "环状核心连接不同的碳链分支，构成有节奏的线条。",
+      "formula": "C11H18N2O3",
+      "molecularWeight": "226.27",
+      "iupacName": "5-ethyl-5-pentan-2-yl-1,3-diazinane-2,4,6-trione",
+      "image": "/images/molecules/4737.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/4737"
+    },
+    "薄荷醇": {
+      "cid": 16666,
+      "referenceName": "Levomenthol",
+      "family": "六元环",
+      "description": "以常见的左旋薄荷醇为结构参考；商品名称本身未限定立体异构体。",
+      "formula": "C10H20O",
+      "molecularWeight": "156.26",
+      "iupacName": "(1R,2S,5R)-5-methyl-2-propan-2-ylcyclohexan-1-ol",
+      "image": "/images/molecules/16666.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/16666"
+    },
+    "乙醇": {
+      "cid": 702,
+      "referenceName": "Ethanol",
+      "family": "短链结构",
+      "description": "两个碳原子与羟基构成简洁的链状骨架。",
+      "formula": "C2H6O",
+      "molecularWeight": "46.07",
+      "iupacName": "ethanol",
+      "image": "/images/molecules/702.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/702"
+    },
+    "裸盖菇素": {
+      "cid": 10624,
+      "referenceName": "Psilocybin",
+      "family": "稠环与分支",
+      "description": "稠合环系、侧链与含磷基团，带来不同尺度的结构细节。",
+      "formula": "C12H17N2O4P",
+      "molecularWeight": "284.25",
+      "iupacName": "[3-[2-(dimethylamino)ethyl]-1H-indol-4-yl] dihydrogen phosphate",
+      "image": "/images/molecules/10624.png",
+      "sourceUrl": "https://pubchem.ncbi.nlm.nih.gov/compound/10624"
+    }
+  }
+}

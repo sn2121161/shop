@@ -66,6 +66,25 @@ def test_products_endpoint_allows_the_frontend_dev_origin(client):
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
 
 
+def test_tracking_options_hide_credentials_and_queries_require_login(client):
+    options = client.get("/api/tracking/options")
+    assert options.status_code == 200
+    assert {item["code"] for item in options.json()["couriers"] if item["supported"]} == {"YTO", "STO", "JTSD", "HTKY"}
+    assert set(options.json()) == {"provider", "enabled", "couriers"}
+    assert client.post("/api/tracking/query", json={"courier": "YTO", "waybill": "DEMO123456"}).status_code == 401
+
+
+def test_tracking_query_returns_no_store_and_checks_configuration(client, monkeypatch):
+    from shop_api.tracking import TrackingService
+    client.app.state.tracking = TrackingService("", "")
+    response = client.post("/api/tracking/query", headers=admin_headers(client), json={"courier": "YTO", "waybill": "DEMO123456"})
+    assert response.status_code == 503
+    monkeypatch.setattr(client.app.state.tracking, "query", lambda *args: {"traces": []})
+    response = client.post("/api/tracking/query", headers=admin_headers(client), json={"courier": "YTO", "waybill": "DEMO123456"})
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+
+
 def test_cart_and_order_reduce_stock(client):
     token = register_and_login(client)
     headers = {"Authorization": f"Bearer {token}"}

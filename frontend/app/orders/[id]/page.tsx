@@ -33,5 +33,6 @@ export default function OrderPage() {
         {fulfillment && <Descriptions.Item label={fulfillment.pickupStore ? "自提点" : "配送地址"}>{deliveryAddress(fulfillment)}</Descriptions.Item>}
       </Descriptions>
     </Card>
+    {fulfillment && !fulfillment.pickupStore && <Card title="快递查询"><p>发货后，请使用商家提供的快递运单号查询物流。</p><Button href="/tracking">按快递公司查询</Button></Card>}
   </main>;
 }

@@ -62,6 +62,8 @@ SHOP_FRONTEND_BIND=127.0.0.1
 
 这里的示例值必须与现有容器匹配。`SHOP_ENV_FILE` 指向服务器已有的生产配置文件，也可以是 `/srv/shop/.env.production`。公网通过 Apache 反代时使用 `127.0.0.1`；若目前直接通过服务器 IP:3000 访问，需使用 `0.0.0.0`，否则会改变访问方式。
 
+前端应用配置单独放在 `/srv/shop/frontend/.env.local`（参考 `frontend/.env.example`），后端应用配置放在 `SHOP_ENV_FILE`。不要将 `NEXT_PUBLIC_*` 写入 `deploy.env`；该文件只保存部署参数，可通过 `SHOP_FRONTEND_ENV_FILE` 自定义前端配置路径。未提供前端配置文件时，前端使用 `/api` 默认代理和无需 Key 的地图搜索入口。应用配置文件不会由 GitHub 上传或覆盖，前端配置修改后需重新构建。
+
 `deploy.env` 会被 Bash source，必须由可信的部署账号维护，只使用变量赋值。项目名和卷名必须保持不变。脚本发现不匹配会停止，不会自动创建空数据库。数据库容器保持运行，仅替换 api/frontend。
 
 ```bash

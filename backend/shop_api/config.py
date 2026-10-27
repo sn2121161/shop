@@ -31,3 +31,6 @@ SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() == "true"
 FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "")
 FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "")
 FEISHU_ORDER_CHAT_ID = os.getenv("FEISHU_ORDER_CHAT_ID", "")
+
+KDNIAO_EBUSINESS_ID = os.getenv("KDNIAO_EBUSINESS_ID", "")
+KDNIAO_API_KEY = os.getenv("KDNIAO_API_KEY", "")

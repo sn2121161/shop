@@ -1,6 +1,6 @@
 # Keep the existing dependency cache; never use this tag for a running service.
 ARG FRONTEND_BUILD_BASE=shop-build-frontend:bootstrap
-FROM ${FRONTEND_BUILD_BASE}
+FROM ${FRONTEND_BUILD_BASE} AS build
 USER root
 WORKDIR /app
 # Preserve only node_modules; remove old routes, output and configuration files.
@@ -9,9 +9,16 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ENV COREPACK_NPM_REGISTRY=$NPM_REGISTRY
 RUN corepack enable && CI=true pnpm install --frozen-lockfile --prefer-offline --registry="$NPM_REGISTRY"
+# Bootstrap images may contain old NEXT_PUBLIC_* environment values. Ignore
+# those during the build so the frontend's own .env.local remains authoritative.
 COPY . ./
-ARG NEXT_PUBLIC_API_URL=/api
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-RUN NODE_OPTIONS=--max-old-space-size=1024 pnpm build
+RUN env -u NEXT_PUBLIC_API_URL -u NEXT_PUBLIC_AMAP_KEY -u NEXT_PUBLIC_AMAP_SECURITY_JS_CODE \
+    NODE_OPTIONS=--max-old-space-size=1024 pnpm build && rm -f /app/.env.local
+
+FROM ${FRONTEND_BUILD_BASE}
+USER root
+WORKDIR /app
+RUN find /app -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+COPY --from=build /app /app
 EXPOSE 3000
-CMD ["pnpm", "start", "--", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["node", "node_modules/vinext/dist/cli.js", "start", "--host", "0.0.0.0", "--port", "3000"]

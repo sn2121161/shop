@@ -118,6 +118,20 @@ elif args[0] == "compose":
                 self.assertEqual(args[args.index("--pull") + 1], "never")
         self.assertEqual((self.root / "deployed-sha").read_text().strip(), SHA)
         self.assertEqual((self.root / "current").resolve(), self.release)
+
+    def test_frontend_config_is_copied_from_its_own_file_without_execution(self):
+        frontend_dir = self.root / "frontend"
+        frontend_dir.mkdir()
+        marker = self.root / "SHOULD_NOT_EXIST"
+        contents = f'NEXT_PUBLIC_AMAP_KEY=course-demo\nNEXT_PUBLIC_AMAP_SECURITY_JS_CODE=$(touch {marker})\n'
+        (frontend_dir / ".env.local").write_text(contents)
+        result, calls = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        copied = self.release / "source/frontend/.env.local"
+        self.assertEqual(copied.read_text(), contents)
+        self.assertFalse(marker.exists())
+        builds = [args for name, args in calls if name == "docker" and args[0] == "build"]
+        self.assertFalse(any("NEXT_PUBLIC_AMAP" in arg for args in builds for arg in args))
         self.assertFalse((self.release / "source.tar.gz").exists())
         self.assertEqual(len(list((self.root / "backups").glob("*.sql.gz"))), 1)
 

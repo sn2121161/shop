@@ -15,6 +15,7 @@ flock -w 900 9
 set -a
 source "$deploy_root/deploy.env"
 set +a
+export SHOP_FRONTEND_ENV_FILE="${SHOP_FRONTEND_ENV_FILE:-$deploy_root/frontend/.env.local}"
 : "${SHOP_COMPOSE_PROJECT:?}" "${SHOP_ENV_FILE:?}" "${SHOP_DB_VOLUME:?}" "${SHOP_UPLOAD_VOLUME:?}"
 [[ "$SHOP_ENV_FILE" = /* && -f "$SHOP_ENV_FILE" ]]
 compose=(docker compose --env-file "$deploy_root/deploy.env" -f "$release_dir/compose.yml")

@@ -10,6 +10,13 @@ frontend_container=${5:?}
 source_dir="$release_dir/source"
 [[ -d "$source_dir/backend" && -d "$source_dir/frontend" ]]
 
+# Application configuration stays on the server, separate from deployment settings.
+frontend_env_file="${SHOP_FRONTEND_ENV_FILE:-$(dirname "$release_dir")/frontend/.env.local}"
+if [[ -f "$frontend_env_file" ]]; then
+  cp -- "$frontend_env_file" "$source_dir/frontend/.env.local"
+  chmod 600 "$source_dir/frontend/.env.local"
+fi
+
 # One-time, offline seed from images already on this server. Pin by container
 # image ID, not a mutable release tag. Retain these tags when pruning images.
 for service in api frontend; do
