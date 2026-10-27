@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-html-link-for-pages -- Native navigation avoids the current Vinext Link RSC runtime error. */
+
 import { useRouter } from "next/navigation";
 import { Button, Card, Form, Input, message } from "antd";
 import { api, apiErrorMessage } from "../shop";

@@ -90,7 +90,8 @@ healthy=false
 for attempt in {1..30}; do
   if curl --fail --silent --max-time 5 http://127.0.0.1:5600/health >/dev/null \
     && curl --fail --silent --max-time 5 http://127.0.0.1:3000/api/products >/dev/null \
-    && curl --fail --silent --max-time 5 http://127.0.0.1:3000/ >/dev/null; then
+    && curl --fail --silent --max-time 5 http://127.0.0.1:3000/ >/dev/null \
+    && curl --fail --silent --max-time 5 http://127.0.0.1:3000/products/1 >/dev/null; then
     healthy=true
     break
   fi

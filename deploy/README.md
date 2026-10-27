@@ -62,7 +62,7 @@ SHOP_FRONTEND_BIND=127.0.0.1
 
 这里的示例值必须与现有容器匹配。`SHOP_ENV_FILE` 指向 `/srv/shop/backend/.env`；旧安装如仍使用其他路径，应先复制完整配置并同步修改此项，保留原数据库、JWT 和支付加密密钥。公网通过 Apache 反代时使用 `127.0.0.1`；若目前直接通过服务器 IP:3000 访问，需使用 `0.0.0.0`，否则会改变访问方式。
 
-前端应用配置单独放在 `/srv/shop/frontend/.env.local`（参考 `frontend/.env.example`），后端应用配置放在 `SHOP_ENV_FILE`。不要将 `NEXT_PUBLIC_*` 写入 `deploy.env`；该文件只保存部署参数，可通过 `SHOP_FRONTEND_ENV_FILE` 自定义前端配置路径。未提供前端配置文件时，前端使用 `/api` 默认代理和无需 Key 的地图搜索入口。应用配置文件不会由 GitHub 上传或覆盖，前端配置修改后需重新构建。
+前端应用配置单独放在 `/srv/shop/frontend/.env.local`（参考 `frontend/.env.example`），后端应用配置放在 `SHOP_ENV_FILE`。不要将 `NEXT_PUBLIC_*` 写入 `deploy.env`；该文件只保存部署参数，可通过 `SHOP_FRONTEND_ENV_FILE` 自定义前端配置路径。未提供前端配置文件时，前端使用 `/api` 默认代理和无需 Key 的地图搜索入口。应用配置文件不会由 GitHub 上传或覆盖，前端配置修改后需重新构建。 服务器构建会拒绝指向 localhost、回环 IP 或 Docker 服务名的前端 API 地址，避免浏览器请求访问者自己的电脑。推荐使用 `NEXT_PUBLIC_API_URL=/api`。
 
 `deploy.env` 会被 Bash source，必须由可信的部署账号维护，只使用变量赋值。项目名和卷名必须保持不变。脚本发现不匹配会停止，不会自动创建空数据库。数据库容器保持运行，仅替换 api/frontend。
 
@@ -151,7 +151,7 @@ PR 构建任务上限为 30 分钟，main 的构建、测试、传输与部署�
 
 工作流串行部署，服务器还有 flock 锁。备份位于 `/srv/shop/backups`，成功版本记录在 `/srv/shop/deployed-sha`，`/srv/shop/current` 指向成功发布目录。成功后删除此次源码压缩包，保留解包源码、校验清单、镜像 ID 和回滚记录；失败时保留压缩包用于排错。首次上线前也应备份上传文件；脚本只自动备份数据库。备份、发布目录、构建缓存和旧镜像需要设置保留策略以免占满磁盘，并保留 bootstrap 基础标签与回滚镜像。
 
-前端 Docker 构建就是当前前端校验；`pnpm test` 引用的 `tests/rendered-html.test.mjs` 在当前项目中不存在，暂未加入 CI。健康检查不代表邮箱投递成功，上线后需用自己的账号实测忘记密码流程。
+前端 Docker 构建后，GitHub 会启动隔离的生产容器检查首页、商品详情、购物车、物流、登录注册和后台入口，避免动态详情页运行时缺少依赖却通过发布检查；正式部署后的健康检查也包含详情页。`pnpm test` 运行 TypeScript 和 ESLint 检查，CI 也会执行；`db/` 和 `examples/` 是不参与当前 FastAPI 商城运行的 Cloudflare D1 示例，未纳入应用的 TypeScript 检查。健康检查不代表邮箱投递成功，上线后需用自己的账号实测忘记密码流程。
 
 迁移失败会停止切换应用。健康检查失败会把工作流标为失败，此时新容器可能已在运行，不会自动恢复数据库。到服务器查看对应 Compose 项目的容器日志（注意日志可能含业务信息）。每次发布目录会保存 previous-api-image.txt 和 previous-frontend-image.txt，记录切换前的镜像。
 

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-html-link-for-pages -- Native navigation avoids the current Vinext Link RSC runtime error. */
+
 import { areaList } from "@vant/area-data";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BankOutlined, CarOutlined, EnvironmentOutlined, HomeOutlined, SafetyCertificateOutlined } from "@ant-design/icons";

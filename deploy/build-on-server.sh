@@ -13,6 +13,27 @@ source_dir="$release_dir/source"
 # Application configuration stays on the server, separate from deployment settings.
 frontend_env_file="${SHOP_FRONTEND_ENV_FILE:-$(dirname "$release_dir")/frontend/.env.local}"
 if [[ -f "$frontend_env_file" ]]; then
+  # Browser requests must not target the visitor's own computer or Docker DNS.
+  python3 - "$frontend_env_file" <<'PYCONFIG'
+import ipaddress
+import sys
+from pathlib import Path
+from urllib.parse import urlsplit
+
+for line in Path(sys.argv[1]).read_text().splitlines():
+    name, separator, value = line.partition("=")
+    if name.strip() != "NEXT_PUBLIC_API_URL" or not separator:
+        continue
+    value = value.strip().strip("\"").strip("'")
+    host = (urlsplit(value).hostname or "").lower()
+    blocked = host in {"localhost", "api", "db"} or host.endswith(".localhost")
+    try:
+        blocked = blocked or ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        pass
+    if blocked:
+        raise SystemExit("NEXT_PUBLIC_API_URL targets localhost or an internal Docker host. Set /api in the server frontend/.env.local; browser requests use the visitor computer, not the server.")
+PYCONFIG
   cp -- "$frontend_env_file" "$source_dir/frontend/.env.local"
   chmod 600 "$source_dir/frontend/.env.local"
 fi
