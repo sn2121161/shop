@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { Button, Card, Form, Input, message } from "antd";
 import { api, apiErrorMessage, useShop } from "../shop";
 
@@ -8,16 +8,20 @@ type LoginForm = { username: string; password: string };
 type LoginResponse = { token: string; user: { username: string; role: string } };
 
 export default function Login() {
-  const router = useRouter();
   const { setSession, refreshCart } = useShop();
   const [notice, holder] = message.useMessage();
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get("reason");
+    if (reason === "expired") notice.warning({ key: "login-required", content: "登录已过期，请重新登录", duration: 5 });
+    if (reason === "disabled") notice.error({ key: "login-required", content: "该用户已停用，请联系管理员", duration: 5 });
+  }, [notice]);
   const submit = async (values: LoginForm) => {
     try {
       const { data } = await api.post<LoginResponse>("/auth/login", values);
       setSession(data.token, data.user.username, data.user.role);
       if (data.user.role !== "admin") await refreshCart();
       notice.success("欢迎回来");
-      router.push(data.user.role === "admin" ? "/admin" : "/");
+      window.location.assign(data.user.role === "admin" ? "/admin" : "/");
     } catch (error: unknown) {
       notice.error(apiErrorMessage(error, "登录失败"));
     }

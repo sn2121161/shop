@@ -128,6 +128,37 @@ colima stop
 docker compose down -v
 ```
 
+## 高德自提点地图（个人学习 / 课程演示）
+
+购物车选择「线下自提」后提供高德搜索、复制地址，以及可选的高德 JS API 2.0 内嵌地图。未配置 Key 时不会加载地图 SDK，仍可打开高德搜索；加载失败可重试。地图直接定位至已核对的高德门店记录「小行星桌游社·日麻·跑团」（POI `B0K6LDM3P4`，文化广场地下一层69号铺，GCJ-02 坐标 `119.972747,31.806285`），用红点和店名标签标记。该坐标于 2026-10-26 从高德地点搜索返回结果核对，不依赖每次打开页面重新搜索；如门店搬迁需更新坐标。
+
+1. 在[高德控制台](https://console.amap.com/)创建「Web端（JS API）」Key 和对应安全密钥，并为 Key 设置实际使用的域名白名单。
+2. 本机运行前端时，将 `frontend/.env.example` 复制为 `frontend/.env.local`，填写两个变量后重启或重新构建前端。
+3. 使用 Docker Compose 时同样填写 `frontend/.env.local`，再执行 `docker compose up -d --build frontend`。无需根目录 `.env`，也无需额外指定 `--env-file`。构建读取该文件，配置变化会使构建缓存失效；原始配置文件不会保留在最终运行镜像中。
+4. 使用服务器自动构建部署时，前端配置放在服务器 `/srv/shop/frontend/.env.local`，后端配置继续由 `SHOP_ENV_FILE` 指向（推荐 `/srv/shop/backend/.env`）。`deploy.env` 仅保存部署参数；如需自定义前端配置文件位置，可设置 `SHOP_FRONTEND_ENV_FILE`。前端配置变化后需要重新构建，不能只重启容器。
+
+```dotenv
+NEXT_PUBLIC_API_URL=/api
+NEXT_PUBLIC_AMAP_KEY=你的Web端JS_API_Key
+NEXT_PUBLIC_AMAP_SECURITY_JS_CODE=对应的安全密钥
+```
+
+此版本为个人课程演示，按高德文档的浏览器明文安全密钥方式接入，两个值都会出现在浏览器资源中，不应复用服务端密钥。正式上线应按[高德安全密钥文档](https://developer.amap.com/api/javascript-api-v2/guide/abc/jscode)改用服务端代理；商业用途和免费额度期限按[高德许可说明](https://lbs.amap.com/faq/advisory/authorization/43168)与账号控制台确认。本项目不会自动购买许可或调用包。
+
+## 分子资料卡与快递查询
+
+商品详情页展示 PubChem 分子结构参考图、分子式、分子量、系统命名、CID 与资料来源。目前核对了 13 个分子，数据和结构图保存在前端，本地展示不依赖访客访问 PubChem。THC、海洛因 I/II 型、迷幻剂等名称未限定具体结构时展示待确认说明，新建的未知商品同样不猜测分子数据。
+
+手动更新资料（需要访问 PubChem，不需要 API Key）：
+
+```bash
+node frontend/scripts/sync-molecules.mjs
+```
+
+更新后重新构建前端。资料不是首饰材质或功效声明，薄荷醇卡片明确使用左旋薄荷醇作为结构参考。参考数据来源与更新日期保存在 `frontend/app/data/molecules.json`。
+
+首页导航、页脚及非自提订单页提供 `/tracking` 站内物流轨迹查询。后端接入快递鸟即时查询免费方案，支持圆通、申通、极兔、百世，其他快递商明确提示免费方案未覆盖。用户需登录；凭证仅配置于 `backend/.env` 的 `KDNIAO_EBUSINESS_ID` 与 `KDNIAO_API_KEY`。未开通时页面明确提示，运单号不写数据库，查询结果仅在内存缓存 5 分钟。申请入口、期限、额度及支持范围见 [免费物流服务与开通说明](docs/free-shipping-options.md)。
+
 ## 数据库 migration
 
 当功能涉及数据表、字段或数据结构时：
@@ -145,6 +176,14 @@ docker compose down -v
 - 通过管理后台上传的商品图片保存在 Docker volume 中，不会随 `git push` 同步；迁移环境时需要单独迁移 PostgreSQL 数据和上传文件卷。
 
 ## 验证与测试
+
+登录会话由后端签发的 12 小时 JWT 保护。前端初始化时通过 `/api/auth/me` 核对已保存的会话；受保护接口返回 401 后，清除对应前台/管理员会话和页面登录状态，并跳转 `/login?reason=expired`。登录密码错误不触发过期跳转，多个并发过期请求只跳转一次，网络错误不会直接删除登录信息。
+
+会话过期回归检查：
+
+```bash
+pnpm --dir frontend exec tsx --test tests/session-expiry.test.ts
+```
 
 ```bash
 # 前端构建与 HTML 测试

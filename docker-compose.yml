@@ -36,8 +36,6 @@ services:
   frontend:
     build:
       context: ./frontend
-      args:
-        NEXT_PUBLIC_API_URL: http://localhost:5600/api
     image: shop-frontend:${IMAGE_TAG:-local}
     ports:
       - "3000:3000"

@@ -1,12 +1,15 @@
-FROM node:22-bookworm-slim
+FROM node:22-bookworm-slim AS build
 
-ARG NEXT_PUBLIC_API_URL=/api
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY . ./
-RUN pnpm build
+RUN pnpm build && rm -f /app/.env.local
+
+# Copy only the completed app, without its local configuration file.
+FROM node:22-bookworm-slim
+WORKDIR /app
+COPY --from=build /app /app
 
 EXPOSE 3000
-CMD ["pnpm", "start", "--", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["node", "node_modules/vinext/dist/cli.js", "start", "--host", "0.0.0.0", "--port", "3000"]

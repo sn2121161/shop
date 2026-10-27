@@ -18,7 +18,7 @@ function Topbar() {
   const { cartCount, token, username, role, clearSession } = useShop();
   return <Header className="topbar" data-gsap="topbar">
     <Link href="/" className="brand"><span className="brand-mark">M</span><span>我的神秘小屋</span></Link>
-    <nav><a href="#story">灵感</a><a href="#collection">项链系列</a><a href="#notice">创作说明</a></nav>
+    <nav><a href="#story">灵感</a><a href="#collection">项链系列</a><a href="/tracking">快递查询</a><a href="#notice">创作说明</a></nav>
     <div className="header-actions">
       {token ? <><span className="account-indicator" title={`当前登录账号：${username || "加载中"}`}><UserRound size={16}/><span>{username || "加载中"}</span></span>{role === "admin" && <a href="/admin">管理后台</a>}<Button type="text" onClick={clearSession}>退出登录</Button></> : <><a href="/login">登录</a><a href="/register"><Button type="primary">注册</Button></a></>}
       <a href="/cart" className="cart-link"><ShoppingBag size={18}/><span>购物车</span><b>{cartCount}</b></a>
@@ -63,5 +63,5 @@ export default function Home() {
     <section id="collection" className="collection"><div className="section-heading"><div><p className="eyebrow">THE COLLECTION / 17 PIECES</p><h2>分子项链系列</h2><p>每一种结构，都是一个安静而独特的符号。</p></div><Input prefix={<Search size={17}/>} placeholder="搜索分子名称或灵感" value={keyword} onChange={(e) => setKeyword(e.target.value)} className="search-box" allowClear/></div>
       {shown.length ? <div className="product-grid">{shown.map((product) => <Card className="product-card" data-gsap="product-card" key={product.id} cover={<a href={`/products/${product.id}`}><div className="product-image"><img src={productImage(product)} alt={`${product.name} 项链`} width={300} height={260}/><span>查看作品</span></div></a>}><div className="product-meta"><div><h3>{product.name}</h3><p>{product.tagline}</p>{product.lowStock && <em className="low-stock">仅剩 {product.stock} 件</em>}</div><strong>¥ {product.price}</strong></div><div className="product-actions"><a href={`/products/${product.id}`}>阅读故事</a><Button disabled={!product.stock} onClick={() => addCart(product)}>{product.stock ? "加入购物车" : "暂时售罄"}</Button></div></Card>)}</div> : <Empty description="没有找到相应的分子作品"/>}</section>
     <section id="notice" className="notice"><Atom size={34}/><div><h3>关于这组作品</h3><p>部分名称来自受管制物质的分子结构，仅用于化学结构艺术研究与首饰设计；本店不提供、推广或讨论任何物质的获取与使用。</p></div></section>
-  </Content><Footer>我的神秘小屋 · 分子项链 — 以好奇心为线，以结构为形</Footer></Layout></div>;
+  </Content><Footer>我的神秘小屋 · 分子项链 — 以好奇心为线，以结构为形 <a className="footer-tracking" href="/tracking">快递查询</a></Footer></Layout></div>;
 }
