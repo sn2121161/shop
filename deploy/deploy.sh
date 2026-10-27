@@ -51,7 +51,7 @@ for service in api frontend; do
   printf '%s\n' "$actual_id" > "$release_dir/$service-image.id"
 done
 
-# Check the newly required mail configuration without printing any secret values.
+# Validate production application configuration before backup/migration/service swap.
 "${compose[@]}" run --rm --no-deps --pull never api python -c '
 import os
 required = ("FRONTEND_URL", "SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "SMTP_STARTTLS")
@@ -64,6 +64,10 @@ if frontend_url.scheme not in ("http", "https") or not frontend_url.hostname:
     raise SystemExit("FRONTEND_URL must be the public HTTP or HTTPS shop URL")
 if os.environ["SMTP_PORT"] == "465":
     raise SystemExit("Current mailer uses SMTP + STARTTLS, not implicit SSL on port 465")
+from shop_api.config import KDNIAO_EBUSINESS_ID, KDNIAO_API_KEY, KDNIAO_SUBSCRIBE_REQUEST_TYPE, KDNIAO_CALLBACK_URL
+from shop_api.tracking_subscriptions import SubscriptionService
+tracking = SubscriptionService(KDNIAO_EBUSINESS_ID, KDNIAO_API_KEY, KDNIAO_SUBSCRIBE_REQUEST_TYPE, KDNIAO_CALLBACK_URL)
+print("Tracking mode: " + ("subscription callbacks" if tracking.enabled else "manual queries"))
 '
 
 mkdir -p "$deploy_root/backups"

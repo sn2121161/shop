@@ -92,3 +92,17 @@ class CommentImage(Base):
     __tablename__ = "comment_images"; __table_args__ = {"schema": "shop"}
     id: Mapped[int] = mapped_column(primary_key=True); user_id: Mapped[int] = mapped_column(ForeignKey("shop.users.id")); comment_id: Mapped[int | None] = mapped_column(ForeignKey("shop.comments.id")); path: Mapped[str] = mapped_column(unique=True); created_at: Mapped[datetime] = mapped_column(default=utcnow)
     def serialize(self, base_url: str): return {"id": self.id, "url": f"{base_url}{self.path}"}
+
+
+class TrackingSubscription(Base):
+    __tablename__ = "tracking_subscriptions"
+    __table_args__ = (UniqueConstraint("courier", "waybill"), {"schema": "shop"})
+    id: Mapped[int] = mapped_column(primary_key=True)
+    courier: Mapped[str]
+    waybill: Mapped[str]
+    subscription_status: Mapped[str] = mapped_column(default="pending")
+    status: Mapped[str] = mapped_column(default="等待物流推送")
+    traces: Mapped[str] = mapped_column(default="[]")
+    push_time: Mapped[str | None]
+    updated_at: Mapped[str | None]
+    last_push_at: Mapped[str | None]
