@@ -1,4 +1,4 @@
-"""On-demand Kdniao free-tier queries; credentials never reach the browser."""
+"""On-demand queries using the explicitly configured Kdniao product."""
 import base64
 from collections import OrderedDict
 from datetime import datetime, timezone
@@ -15,25 +15,26 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .security import active_user
+from .database import get_session
 
 PROVIDER_URL = "https://api.kdniao.com/Ebusiness/EbusinessOrderHandle.aspx"
-# Deliberately restrict upstream calls to the published free-plan coverage.
+# Couriers integrated by this app. Provider entitlements depend on the account.
 COURIERS = [
     ("YTO", "圆通速递", True), ("STO", "申通快递", True),
     ("JTSD", "极兔速递", True), ("HTKY", "百世快递", True),
     ("SF", "顺丰速运", False), ("YD", "韵达快递", False),
     ("ZTO", "中通快递", False), ("EMS", "EMS", False),
 ]
-FREE_COURIERS = {code: name for code, name, supported in COURIERS if supported}
+SUPPORTED_COURIERS = {code: name for code, name, supported in COURIERS if supported}
 STATES = {"0": "暂无轨迹", "1": "已揽收", "2": "运输中", "3": "已签收", "4": "问题件"}
 LOGGER = logging.getLogger("shop.tracking")
 
 
-def provider_failure(reason, courier):
+def provider_failure(reason, courier, request_type="1002"):
     """Translate known provider reasons without echoing private provider payloads."""
     text = str(reason or "").casefold()
     if "不匹配" in text and any(word in text for word in ("快递", "运单", "单号")):
-        return "courier_mismatch", 400, f"运单号与所选的{FREE_COURIERS[courier]}不匹配，请核对快递公司和运单号"
+        return "courier_mismatch", 400, f"运单号与所选的{SUPPORTED_COURIERS[courier]}不匹配，请核对快递公司和运单号"
     if any(word in text for word in ("签名", "密钥", "apikey", "api key", "appkey", "ebusinessid", "用户id", "商户id", "用户不存在")):
         return "credentials", 503, "物流服务凭证校验失败，请管理员核对快递鸟用户 ID 和 API Key"
     if any(word in text for word in ("到期", "过期", "失效")):
@@ -41,7 +42,7 @@ def provider_failure(reason, courier):
     if any(word in text for word in ("余量", "余额", "额度", "次数", "流量不足", "套餐已用完")):
         return "quota", 503, "物流查询次数或可用额度不足，请等待额度恢复或联系管理员"
     if any(word in text for word in ("权限", "授权", "未开通", "没有可用套餐", "无可用套餐", "套餐不存在", "未购买", "未订购", "不支持此接口")):
-        return "permission", 503, f"当前账号没有适用于{FREE_COURIERS[courier]}即时查询（1002）的可用套餐，请管理员在快递鸟核对免费查询权限及套餐有效期"
+        return "permission", 503, f"当前账号没有适用于{SUPPORTED_COURIERS[courier]}查询接口（{request_type}）的可用套餐，请管理员在快递鸟核对所开通的服务及套餐有效期"
     if any(word in text for word in ("手机号", "手机号码", "电话号码", "尾号")):
         return "phone_required", 400, "服务商要求对该运单进行手机号校验，请向商家确认查询要求"
     if any(word in text for word in ("格式", "单号错误", "运单号不正确", "单号不能为空")):
@@ -57,9 +58,12 @@ class TrackingInput(BaseModel):
 
 
 class TrackingService:
-    def __init__(self, business_id: str, api_key: str):
+    def __init__(self, business_id: str, api_key: str, request_type: str = "1002"):
+        if request_type not in {"1002", "8002"}:
+            raise ValueError("KDNIAO_REQUEST_TYPE must be 1002 or 8002")
         self.business_id = business_id
         self.api_key = api_key
+        self.request_type = request_type
         self._lock = Lock()
         self._cache = OrderedDict()
         self._last_request = float("-inf")
@@ -69,8 +73,8 @@ class TrackingService:
         return bool(self.business_id and self.api_key)
 
     def query(self, user_id: int, courier: str, waybill: str):
-        if courier not in FREE_COURIERS:
-            raise HTTPException(400, "该快递商不在当前免费方案范围内，请选择圆通、申通、极兔或百世")
+        if courier not in SUPPORTED_COURIERS:
+            raise HTTPException(400, "该快递商暂未接入，请选择圆通、申通、极兔或百世")
         normalized = re.sub(r"\s", "", waybill).upper()
         if not re.fullmatch(r"[A-Z0-9]{6,40}", normalized):
             raise HTTPException(400, "运单号应为 6–40 位字母或数字")
@@ -92,7 +96,7 @@ class TrackingService:
             signature = base64.b64encode(digest.encode()).decode()
             try:
                 response = httpx.post(PROVIDER_URL, data={
-                    "EBusinessID": self.business_id, "RequestType": "1002", "DataType": "2",
+                    "EBusinessID": self.business_id, "RequestType": self.request_type, "DataType": "2",
                     "RequestData": payload, "DataSign": signature,
                 }, timeout=12, follow_redirects=False)
                 response.raise_for_status()
@@ -107,7 +111,7 @@ class TrackingService:
             # not all authorization failures; never echo untrusted raw reasons.
             if data.get("Success") is not True:
                 if data.get("Reason") or data.get("Traces") != []:
-                    category, status, message = provider_failure(data.get("Reason"), courier)
+                    category, status, message = provider_failure(data.get("Reason"), courier, self.request_type)
                     LOGGER.warning("Tracking query rejected: courier=%s category=%s", courier, category)
                     if category == "no_data" and data.get("Traces") in (None, []):
                         data["Traces"] = []
@@ -125,7 +129,7 @@ class TrackingService:
                 traces.append({"time": trace["AcceptTime"], "description": trace["AcceptStation"]})
             traces.sort(key=lambda trace: trace["time"].replace("/", "-"), reverse=True)
             result = {
-                "courier": courier, "courierName": FREE_COURIERS[courier], "waybill": normalized,
+                "courier": courier, "courierName": SUPPORTED_COURIERS[courier], "waybill": normalized,
                 "status": STATES.get(str(data.get("State")), "状态待确认") if traces else "暂无轨迹",
                 "traces": traces, "provider": "快递鸟",
                 "queriedAt": datetime.now(timezone.utc).isoformat(), "cached": False,
@@ -147,6 +151,8 @@ def tracking_options(request: Request):
 
 
 @tracking_router.post("/query")
-def query_tracking(data: TrackingInput, request: Request, user_id: int = Depends(active_user)):
-    result = request.app.state.tracking.query(user_id, data.courier, data.waybill)
+def query_tracking(data: TrackingInput, request: Request, user_id: int = Depends(active_user), session=Depends(get_session)):
+    subscriptions = request.app.state.tracking_subscriptions
+    result = (subscriptions.register(session, data.courier, data.waybill) if subscriptions.enabled
+              else request.app.state.tracking.query(user_id, data.courier, data.waybill))
     return JSONResponse(result, headers={"Cache-Control": "no-store"})

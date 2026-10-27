@@ -21,13 +21,13 @@
 
 ## 本次修改之后怎么操作
 
-1. 本次已经验证服务器构建、后端测试和临时前端启动；正式服务尚未切换。先检查下文的邮箱 migration 提示，避免正式发布时覆盖用户邮箱。
-2. 本地提交 Workflow、整个 deploy 目录、tests/deployment 及根 README.md 的变更，包括新增文件和旧测试路径的删除；不要提交任何 `.env`。
-3. 将 `dev` 推送到 GitHub，创建或更新 `dev → main` 的 PR；等待 PR 测试通过后再合并。
-4. 合并会自动创建一次新的 Test and deploy shop。无需手动再点 Run workflow，也不要重跑旧失败记录。
-5. 新任务中应出现 Pack source at the tested commit、Upload source over SSH and deploy；服务器会构建、测试、备份和迁移后更新容器。GitHub 必须显示成功，再用浏览器检查首页、登录及忘记密码页面。实际发送重置邮件由你按需验收。
+1. 配置服务器应用文件：后端 `/srv/shop/backend/.env`，前端 `/srv/shop/frontend/.env.local`。物流配置和验收见 [物流订阅与回调](../docs/tracking-webhook.md)。本地配置不会上传到服务器。
+2. 自行提交并推送本次应用、迁移和部署文件，包含新增的 `backend/shop_api/tracking_subscriptions.py`、`backend/migrations/versions/20261027_04_tracking_subscriptions.py` 及文档；不要提交任何真实 `.env`。
+3. 如果推送到 `dev`，创建或更新 `dev → main` 的 PR；测试通过后合并。推送或合并到 `main` 才会触发正式部署。
+4. 在 Actions 查看 `Test and deploy shop`。工作流自动构建、测试、备份数据库、运行 `alembic upgrade head`、重建服务并检查健康状态。已经执行过的迁移不会重复建表。
+5. 部署成功后，从公网商城登记真实运单，确认订阅受理，再验证真实推送与页面更新时间。控制台格式校验通过不等于真实运单已订阅。
 
-服务器沿用已有 `/srv/shop/deploy.env`、生产 `.env.production` 和四个 GitHub SSH Secrets。源码构建默认使用国内依赖源，无需再配置镜像仓库账号。保留服务器上 `shop-build-api:bootstrap`、`shop-build-frontend:bootstrap` 两个基础标签。
+服务器沿用 `/srv/shop/deploy.env` 和四个 GitHub SSH Secrets。该文件仅配置项目、卷、文件路径和构建参数；应用配置按前后端分别维护。保留 `shop-build-api:bootstrap`、`shop-build-frontend:bootstrap` 两个基础标签。
 
 ## 1. 在服务器准备一次
 
@@ -60,7 +60,7 @@ SHOP_UPLOAD_VOLUME=shop_shop_uploads
 SHOP_FRONTEND_BIND=127.0.0.1
 ```
 
-这里的示例值必须与现有容器匹配。`SHOP_ENV_FILE` 指向服务器已有的生产配置文件，也可以是 `/srv/shop/.env.production`。公网通过 Apache 反代时使用 `127.0.0.1`；若目前直接通过服务器 IP:3000 访问，需使用 `0.0.0.0`，否则会改变访问方式。
+这里的示例值必须与现有容器匹配。`SHOP_ENV_FILE` 指向 `/srv/shop/backend/.env`；旧安装如仍使用其他路径，应先复制完整配置并同步修改此项，保留原数据库、JWT 和支付加密密钥。公网通过 Apache 反代时使用 `127.0.0.1`；若目前直接通过服务器 IP:3000 访问，需使用 `0.0.0.0`，否则会改变访问方式。
 
 前端应用配置单独放在 `/srv/shop/frontend/.env.local`（参考 `frontend/.env.example`），后端应用配置放在 `SHOP_ENV_FILE`。不要将 `NEXT_PUBLIC_*` 写入 `deploy.env`；该文件只保存部署参数，可通过 `SHOP_FRONTEND_ENV_FILE` 自定义前端配置路径。未提供前端配置文件时，前端使用 `/api` 默认代理和无需 Key 的地图搜索入口。应用配置文件不会由 GitHub 上传或覆盖，前端配置修改后需重新构建。
 
@@ -107,6 +107,14 @@ QQ 邮箱需要开启 SMTP 服务，`SMTP_PASSWORD` 使用邮箱生成的授权�
 `FRONTEND_URL` 填浏览器实际访问商城的公网地址，支持 HTTP 或 HTTPS，例如 `http://你的服务器IP:3000`。不能照抄本地 localhost，否则邮件里的重置链接会指向用户自己的电脑。以后启用 HTTPS 时再更新这个值。部署会校验必填配置是否存在，但不会实际发信验证 SMTP 密码。
 
 部署时 `--force-recreate` 会使新容器重新读取服务器 `.env`。如果只修改了服务器 `.env`，可以在 GitHub Actions 页面选择 `main` 手动重新运行完整工作流。生产配置只在服务器维护，不需要再放一份 SMTP_PASSWORD 到 GitHub Secrets。
+
+### 物流与前端配置
+
+物流密钥只放后端。请按 [物流订阅与回调](../docs/tracking-webhook.md) 的服务器示例填写 1008 和公网回调地址。发布脚本在迁移和切换容器前复用应用校验逻辑：订阅产品已填写但商户 ID、密钥或回调 URL 不完整时停止部署，不会静默切回手动查询。
+
+本服务器目前的部署项目为 `app`，前端绑定 `0.0.0.0:3000`；不要把通用模板中的 `shop` 项目名或卷名覆盖到现有安装。
+
+新增物流表由 `20261027_04` 创建，已有数据库执行到该版本后再次发布不重复建表。不要只推送模型而遗漏迁移文件。
 
 ### 合并前检查 migration
 

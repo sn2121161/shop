@@ -16,7 +16,9 @@ from .routers import router
 from .notifications import retry_pending_notifications
 from .services import seed_database
 from .tracking import TrackingService, tracking_router
-from .config import KDNIAO_API_KEY, KDNIAO_EBUSINESS_ID
+from .tracking_subscriptions import SubscriptionService, router as subscription_router
+from .config import KDNIAO_SUBSCRIBE_REQUEST_TYPE, KDNIAO_CALLBACK_URL
+from .config import KDNIAO_API_KEY, KDNIAO_EBUSINESS_ID, KDNIAO_REQUEST_TYPE
 
 
 def create_app(database_url: str | None = None, jwt_secret: str | None = None, upload_directory: str | Path | None = None) -> FastAPI:
@@ -30,7 +32,8 @@ def create_app(database_url: str | None = None, jwt_secret: str | None = None, u
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.tracking = TrackingService(KDNIAO_EBUSINESS_ID, KDNIAO_API_KEY)
+        app.state.tracking = TrackingService(KDNIAO_EBUSINESS_ID, KDNIAO_API_KEY, KDNIAO_REQUEST_TYPE)
+        app.state.tracking_subscriptions = SubscriptionService(KDNIAO_EBUSINESS_ID, KDNIAO_API_KEY, KDNIAO_SUBSCRIBE_REQUEST_TYPE, KDNIAO_CALLBACK_URL)
         if AUTO_CREATE_SCHEMA or url.startswith("sqlite"):
             create_schema(engine, url); Base.metadata.create_all(engine); migrate_schema(engine, url)
         if SEED_DEMO_DATA:
@@ -74,6 +77,7 @@ def create_app(database_url: str | None = None, jwt_secret: str | None = None, u
     app.include_router(router)
     app.include_router(admin_router)
     app.include_router(tracking_router)
+    app.include_router(subscription_router)
 
     @app.get("/health", include_in_schema=False)
     def healthcheck():

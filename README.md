@@ -157,7 +157,7 @@ node frontend/scripts/sync-molecules.mjs
 
 更新后重新构建前端。资料不是首饰材质或功效声明，薄荷醇卡片明确使用左旋薄荷醇作为结构参考。参考数据来源与更新日期保存在 `frontend/app/data/molecules.json`。
 
-首页导航、页脚及非自提订单页提供 `/tracking` 站内物流轨迹查询。后端接入快递鸟即时查询免费方案，支持圆通、申通、极兔、百世，其他快递商明确提示免费方案未覆盖。用户需登录；凭证仅配置于 `backend/.env` 的 `KDNIAO_EBUSINESS_ID` 与 `KDNIAO_API_KEY`。未开通时页面明确提示，运单号不写数据库，查询结果仅在内存缓存 5 分钟。申请入口、期限、额度及支持范围见 [免费物流服务与开通说明](docs/free-shipping-options.md)。
+首页导航、页脚及非自提订单页提供 `/tracking` 站内物流轨迹查询。后端接入快递鸟，当前版本支持圆通、申通、极兔、百世，其他快递商提示暂未接入。接口指令通过 `backend/.env` 中的 `KDNIAO_REQUEST_TYPE` 指定，当前账号配置为已开通的快递查询 `8002`，保留 `1002` 的兼容支持。用户需登录；凭证仅配置于 `backend/.env` 的 `KDNIAO_EBUSINESS_ID` 与 `KDNIAO_API_KEY`。未开通时页面明确提示，运单号不写数据库，查询结果仅在内存缓存 5 分钟。申请入口、期限、额度及支持范围见 [免费物流服务与开通说明](docs/free-shipping-options.md)。
 
 ## 数据库 migration
 
@@ -179,12 +179,6 @@ node frontend/scripts/sync-molecules.mjs
 
 登录会话由后端签发的 12 小时 JWT 保护。前端初始化时通过 `/api/auth/me` 核对已保存的会话；受保护接口返回 401 后，清除对应前台/管理员会话和页面登录状态，并跳转 `/login?reason=expired`。登录密码错误不触发过期跳转，多个并发过期请求只跳转一次，网络错误不会直接删除登录信息。
 
-会话过期回归检查：
-
-```bash
-pnpm --dir frontend exec tsx --test tests/session-expiry.test.ts
-```
-
 ```bash
 # 前端构建与 HTML 测试
 pnpm --dir frontend test
@@ -202,3 +196,5 @@ python -m pytest backend/tests -q
 ## 许可证
 
 本项目采用 [MIT License](LICENSE)。
+
+物流可另行开通订阅推送，首次登记单号后由快递鸟回调更新数据库，页面显示最新物流节点与本站同步时间。配置仍只放 `backend/.env`；参见 [物流订阅与回调](docs/tracking-webhook.md)。
