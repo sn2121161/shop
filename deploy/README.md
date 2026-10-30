@@ -88,6 +88,24 @@ SHOP_NPM_REGISTRY=https://registry.npmmirror.com
 
 构建时保留旧容器运行。前端构建限制 Node 堆内存约 1 GiB，构建命令设置 1536 MiB 内存参数；实际约束取决于 Docker 构建后端。服务运行资源限制仍由 Compose 管理。
 
+### 前端静态资源预压缩
+
+生产前端构建会为 `dist/client/_next/static` 下的哈希资源生成 `.br`、`.gz`、`.zst` 预压缩文件。Node 生产服务器按 `Accept-Encoding` 直接发送对应文件，并返回 `Vary: Accept-Encoding`；没有预压缩文件时，服务器会回退为未压缩响应（仍为 200，但无 `Content-Encoding`），客户端感知不到配置缺失。
+
+`frontend/Dockerfile` 和 `deploy/Dockerfile.frontend` 都通过 `VINEXT_PRECOMPRESS=1` 启用预压缩。GitHub 构建和服务器构建都会在构建后检查 `dist/client/_next/static` 中存在 `.br`/`.gz`，缺失则停止发布；该检查发生在迁移和容器切换之前。
+
+服务器本机复核（把 `<hash>` 换成实际 chunk）：
+
+```bash
+curl -sSI -H 'Accept-Encoding: gzip' \
+  http://127.0.0.1:3000/_next/static/chunks/framework-<hash>.js \
+  | grep -i -E 'content-encoding|vary|cache-control'
+# 期望：Content-Encoding: gzip；Vary: Accept-Encoding；
+#       Cache-Control: public, max-age=31536000, immutable
+```
+
+预压缩只覆盖构建产物中的哈希静态资源。`public/` 下的 PNG/JPG 本身已压缩，预压缩不会改变图片体积；图片需要在前端素材层单独优化。`/api`、`/uploads` 代理和上传文件缓存策略不受影响。
+
 ## 2. 忘记密码的生产环境变量
 
 `.gitignore` 继续忽略 `.env`，这是正确做法。只提交 `.env.example` 中的变量名和示例值。在服务器的 `SHOP_ENV_FILE` 文件中**追加或修改**下面这些变量，保留原来的数据库密码、JWT_SECRET、PAYMENT_ENCRYPTION_KEY 等配置；不要用本地 `.env` 整份覆盖生产配置。

@@ -12,8 +12,12 @@ RUN corepack enable && CI=true pnpm install --frozen-lockfile --prefer-offline -
 # Bootstrap images may contain old NEXT_PUBLIC_* environment values. Ignore
 # those during the build so the frontend's own .env.local remains authoritative.
 COPY . ./
+# Emit .br/.gz/.zst variants for hashed static assets. The production server
+# serves compressed files only from its startup static cache; without these
+# variants it returns identity responses (no Content-Encoding) even when the
+# client sends Accept-Encoding: gzip, br.
 RUN env -u NEXT_PUBLIC_API_URL -u NEXT_PUBLIC_AMAP_KEY -u NEXT_PUBLIC_AMAP_SECURITY_JS_CODE \
-    NODE_OPTIONS=--max-old-space-size=1024 pnpm build && rm -f /app/.env.local
+    VINEXT_PRECOMPRESS=1 NODE_OPTIONS=--max-old-space-size=1024 pnpm build && rm -f /app/.env.local
 
 FROM ${FRONTEND_BUILD_BASE}
 USER root
