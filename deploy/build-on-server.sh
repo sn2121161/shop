@@ -58,6 +58,12 @@ docker build --pull=false --memory=1536m "${labels[@]}" \
   --build-arg "NPM_REGISTRY=${SHOP_NPM_REGISTRY:-https://registry.npmmirror.com}" \
   -f "$source_dir/deploy/Dockerfile.frontend" -t "$image_base-frontend:$revision" "$source_dir/frontend"
 
+# Stop before migration or a service swap if the frontend image is missing the
+# precompressed static variants that the production server relies on.
+docker run --rm --network none --entrypoint sh "$image_base-frontend:$revision" -c \
+  'test -n "$(find dist/client/_next/static -type f -name "*.br" -print -quit)" &&
+   test -n "$(find dist/client/_next/static -type f -name "*.gz" -print -quit)"'
+
 # Validate the server-built backend before any backup, migration or service swap.
 test_key=$(docker run --rm --network none --entrypoint python "$image_base-api:$revision" \
   -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')

@@ -12,6 +12,13 @@ docker build --platform linux/amd64 "${labels[@]}" -t "$image_base-api:$GITHUB_S
 docker build --platform linux/amd64 \
   "${labels[@]}" -t "$image_base-frontend:$GITHUB_SHA" ./frontend
 
+# The production server serves compressed hashed assets only when the build
+# emitted precompressed variants. A missing variant would silently fall back to
+# identity responses, so fail here instead of shipping an uncompressed build.
+docker run --rm --network none --entrypoint sh "$image_base-frontend:$GITHUB_SHA" -c \
+  'test -n "$(find dist/client/_next/static -type f -name "*.br" -print -quit)" &&
+   test -n "$(find dist/client/_next/static -type f -name "*.gz" -print -quit)"'
+
 docker run --rm --network none --entrypoint sh "$image_base-frontend:$GITHUB_SHA" -c \
   'node node_modules/typescript/bin/tsc --noEmit && node node_modules/eslint/bin/eslint.js . --ignore-pattern dist --ignore-pattern .next'
 

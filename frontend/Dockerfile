@@ -4,7 +4,9 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY . ./
-RUN pnpm build && rm -f /app/.env.local
+# Precompress hashed static assets for the production server; see
+# deploy/Dockerfile.frontend for the runtime reason.
+RUN VINEXT_PRECOMPRESS=1 pnpm build && rm -f /app/.env.local
 
 # Copy only the completed app, without its local configuration file.
 FROM node:22-bookworm-slim
