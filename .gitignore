@@ -4,6 +4,18 @@
 .vscode/
 *.swp
 
+# Local coding-agent state and instructions (at any directory depth)
+.opencode/
+.multica/
+.claude/
+.codex/
+.agents/
+.cursor/
+.aider*
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
 # Local configuration and secrets
 .env
 .env.*
