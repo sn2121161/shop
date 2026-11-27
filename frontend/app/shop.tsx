@@ -3,6 +3,7 @@ import axios from "axios";
 import { create } from "zustand";
 
 export type Product = { id:number; name:string; price:number; tagline:string; story:string; image:string; stock:number; lowStock?:boolean };
+export const DATA_CONSULTING_NAME = "定制化数据咨询服务";
 const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || "/api").replace(/\/api\/?$/, "");
 type SessionScope = "admin" | "customer";
 type SessionField = "token" | "username" | "role";
@@ -22,7 +23,10 @@ function invalidateSession(scope: SessionScope, reason: "expired" | "disabled") 
     window.location.assign(`/login?reason=${reason}`);
   }
 }
-const productAssetUrl = (path: string) => path.startsWith("/uploads/") ? `${apiBaseUrl}${path}` : path;
+function productAssetUrl(path: string) {
+  if (path === "/images/data-consulting.webp") return `${path}?v=portrait`;
+  return path.startsWith("/uploads/") ? `${apiBaseUrl}${path}` : path;
+}
 const productImages: Record<string, string> = {
   "血清素": "/images/serotonin-necklace.webp",
   "可卡因": "/images/cocaine-necklace.webp",

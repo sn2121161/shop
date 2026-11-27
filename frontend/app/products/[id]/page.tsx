@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Divider, InputNumber, Spin, Tag, message } from "antd";
 import { ArrowLeft, Home, ShoppingBag } from "lucide-react";
-import { api, apiErrorMessage, productImage, productReferenceImage, Product, useShop } from "../../shop";
+import { api, apiErrorMessage, DATA_CONSULTING_NAME, productImage, productReferenceImage, Product, useShop } from "../../shop";
 import ProductComments from "../../components/ProductComments";
 import MoleculeCard from "../../components/MoleculeCard";
 
@@ -37,12 +37,48 @@ export default function ProductPage() {
   if (!product) return <main className="loading">{holder}{loadError
     ? <div role="alert"><p>{loadError}</p><Button onClick={() => { setLoadError(""); setAttempt((value) => value + 1); }}>重新加载</Button><p><a href="/">返回首页</a></p></div>
     : <Spin aria-label="正在加载商品详情" />}</main>;
+  const consulting = product.name === DATA_CONSULTING_NAME;
   const referenceImage = productReferenceImage(product);
-  return <main className="detail-page">{holder}<a href="/#collection" className="back-home"><ArrowLeft size={16} /> 返回系列</a>
-    <div className="detail-grid"><div className="detail-images">
-      <div className="detail-main"><img src={productImage(product)} alt={`${product.name} 项链展示`} width={640} height={420} decoding="async" fetchPriority="high" /></div>
-      {referenceImage ? <div className="detail-secondary"><img src={referenceImage} alt="血清素项链参考图" width={320} height={170} loading="lazy" decoding="async" /></div> : <div className="image-placeholder">产品实拍图<br />待补充</div>}
-      <div className="image-placeholder">模特佩戴图<br />待补充</div>
-    </div><div className="detail-copy"><p className="eyebrow">MOLECULE PIECE / {String(product.id).padStart(2, "0")}</p><h1>{product.name}</h1>{product.tagline && <h2>{product.tagline}</h2>}<p className="detail-story">{product.story}</p><Tag color="gold">化学结构艺术饰品</Tag><Divider /><div className="price-row"><span>作品价格</span><strong>¥ {product.price}</strong></div><div className="detail-actions"><p className={product.stock ? "in-stock" : "sold-out"}>{product.stock ? <>{`余 ${product.stock} 件，可加入购物车`}{product.lowStock && <span className="low-stock">仅剩 {product.stock} 件</span>}</> : "暂时售罄"}</p><div className="detail-add-row"><Button size="large" type="primary" icon={<ShoppingBag size={17} />} disabled={!product.stock} onClick={add}>加入购物车</Button><span className="add-quantity"><span>数量</span><InputNumber min={1} max={product.stock} value={quantity} disabled={!product.stock} onChange={(value) => setQuantity(typeof value === "number" ? value : 1)} /></span></div><div className="detail-navigation"><Button size="large" onClick={() => { window.location.href = "/cart"; }}>查看购物车</Button><Button size="large" icon={<Home size={17} />} onClick={() => { window.location.href = "/"; }}>返回首页</Button></div></div><p className="detail-note">本作品只将化学结构转译为首饰语言，不涉及任何物质的获取或使用。</p></div></div><MoleculeCard productName={product.name} /><ProductComments productId={product.id} />
+  return <main className="detail-page">{holder}
+    <a href={consulting ? "/#consulting" : "/#collection"} className="back-home"><ArrowLeft size={16} /> {consulting ? "返回服务列表" : "返回系列"}</a>
+    <div className={consulting ? "detail-grid consulting-detail" : "detail-grid"}>
+      {consulting ? <img className="consulting-detail-image" src={productImage(product)} alt="深色背景下显示统计图表的笔记本电脑" width={768} height={1024} decoding="async" fetchPriority="high" /> : <div className="detail-images">
+        <div className="detail-main"><img src={productImage(product)} alt={`${product.name} 项链展示`} width={640} height={420} decoding="async" fetchPriority="high" /></div>
+        {referenceImage ? <div className="detail-secondary"><img src={referenceImage} alt="血清素项链参考图" width={320} height={170} loading="lazy" decoding="async" /></div> : <div className="image-placeholder">产品实拍图<br />待补充</div>}
+        <div className="image-placeholder">模特佩戴图<br />待补充</div>
+      </div>}
+      <div className="detail-copy">
+        {!consulting && <p className="eyebrow">MOLECULE PIECE / {String(product.id).padStart(2, "0")}</p>}
+        <h1>{product.name}</h1>
+        {consulting ? <>
+          <section className="consulting-scope" aria-labelledby="consulting-scope-title">
+            <h2 id="consulting-scope-title">服务内容</h2>
+            <ul>{product.story.split(/\r?\n/).filter((line) => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul>
+          </section>
+          <section className="consulting-scope" aria-labelledby="consulting-notes-title">
+            <h2 id="consulting-notes-title">注意事项</h2>
+            <ul>
+              <li><strong>购买前：</strong>请联系网站客服，沟通具体需求，说明数据采集内容范围；数据清洗，质量检测具体要求；数据可视化具体要求；数据分析、数据建模、算法开发具体要求，交付时间等信息。</li>
+              <li><strong>购买后：</strong>中途变更需求、变更交付时间等，须另行评估服务定价，由服务提供方与用户协商确定。</li>
+              <li><strong>交付：</strong>服务提供方创建 GitHub 仓库，提交代码与开发文档，指导用户熟悉开发代码、本地部署、服务使用等，服务方承诺提供一年运维服务，期间责任由服务提供方承担。</li>
+            </ul>
+          </section>
+        </> : <>
+          {product.tagline && <h2>{product.tagline}</h2>}
+          <p className="detail-story">{product.story}</p>
+          <Tag color="gold">化学结构艺术饰品</Tag>
+        </>}
+        <Divider />
+        <div className="price-row"><span>{consulting ? "服务价格" : "作品价格"}</span><strong>¥ {consulting ? product.price.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : product.price}</strong></div>
+        <div className="detail-actions">
+          {(!consulting || !product.stock) && <p className={product.stock ? "in-stock" : "sold-out"}>{product.stock ? <>{`余 ${product.stock} 件，可加入购物车`}{product.lowStock && <span className="low-stock">仅剩 {product.stock} 件</span>}</> : "暂时售罄"}</p>}
+          <div className="detail-add-row"><Button size="large" type="primary" icon={<ShoppingBag size={17} />} disabled={!product.stock} onClick={add}>加入购物车</Button><span className="add-quantity"><span>数量</span><InputNumber min={1} max={product.stock} value={quantity} disabled={!product.stock} onChange={(value) => setQuantity(typeof value === "number" ? value : 1)} /></span></div>
+          <div className="detail-navigation"><Button size="large" onClick={() => { window.location.href = "/cart"; }}>查看购物车</Button><Button size="large" icon={<Home size={17} />} onClick={() => { window.location.href = "/"; }}>返回首页</Button></div>
+        </div>
+        {!consulting && <p className="detail-note">本作品只将化学结构转译为首饰语言，不涉及任何物质的获取或使用。</p>}
+      </div>
+    </div>
+    {!consulting && <MoleculeCard productName={product.name} />}
+    <ProductComments productId={product.id} />
   </main>;
 }
