@@ -6,6 +6,7 @@
 
 # Local coding-agent state and instructions (at any directory depth)
 .opencode/
+./pi
 .multica/
 .claude/
 .codex/
