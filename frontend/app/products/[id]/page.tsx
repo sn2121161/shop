@@ -6,7 +6,8 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, Divider, InputNumber, Spin, Tag, message } from "antd";
 import { ArrowLeft, Home, ShoppingBag } from "lucide-react";
-import { api, apiErrorMessage, DATA_CONSULTING_NAME, productImage, productReferenceImage, Product, useShop } from "../../shop";
+import { api, apiErrorMessage, productImage, productReferenceImage, Product, useShop } from "../../shop";
+import { consultingNotesByName } from "../../data/consulting";
 import ProductComments from "../../components/ProductComments";
 import MoleculeCard from "../../components/MoleculeCard";
 
@@ -37,7 +38,8 @@ export default function ProductPage() {
   if (!product) return <main className="loading">{holder}{loadError
     ? <div role="alert"><p>{loadError}</p><Button onClick={() => { setLoadError(""); setAttempt((value) => value + 1); }}>重新加载</Button><p><a href="/">返回首页</a></p></div>
     : <Spin aria-label="正在加载商品详情" />}</main>;
-  const consulting = product.name === DATA_CONSULTING_NAME;
+  const consultingNotes = consultingNotesByName.get(product.name);
+  const consulting = Boolean(consultingNotes);
   const referenceImage = productReferenceImage(product);
   return <main className="detail-page">{holder}
     <a href={consulting ? "/#consulting" : "/#collection"} className="back-home"><ArrowLeft size={16} /> {consulting ? "返回服务列表" : "返回系列"}</a>
@@ -50,7 +52,7 @@ export default function ProductPage() {
       <div className="detail-copy">
         {!consulting && <p className="eyebrow">MOLECULE PIECE / {String(product.id).padStart(2, "0")}</p>}
         <h1>{product.name}</h1>
-        {consulting ? <>
+        {consultingNotes ? <>
           <section className="consulting-scope" aria-labelledby="consulting-scope-title">
             <h2 id="consulting-scope-title">服务内容</h2>
             <ul>{product.story.split(/\r?\n/).filter((line) => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul>
@@ -58,9 +60,7 @@ export default function ProductPage() {
           <section className="consulting-scope" aria-labelledby="consulting-notes-title">
             <h2 id="consulting-notes-title">注意事项</h2>
             <ul>
-              <li><strong>购买前：</strong>请联系网站客服，沟通具体需求，说明数据采集内容范围；数据清洗，质量检测具体要求；数据可视化具体要求；数据分析、数据建模、算法开发具体要求，交付时间等信息。</li>
-              <li><strong>购买后：</strong>中途变更需求、变更交付时间等，须另行评估服务定价，由服务提供方与用户协商确定。</li>
-              <li><strong>交付：</strong>服务提供方创建 GitHub 仓库，提交代码与开发文档，指导用户熟悉开发代码、本地部署、服务使用等，服务方承诺提供一年运维服务，期间责任由服务提供方承担。</li>
+              {consultingNotes.map(([label, description]) => <li key={label}><strong>{label}：</strong>{description}</li>)}
             </ul>
           </section>
         </> : <>

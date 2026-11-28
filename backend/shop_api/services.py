@@ -47,7 +47,8 @@ def seed_database(sessions: sessionmaker[Session], admin_password: str = "Admin@
             # The requested bootstrap credential is hashed and never exposed by an API.
             session.add(User(username="admin", email="1136205530@qq.com", password_hash=generate_password_hash(admin_password), role="admin"))
             session.commit()
-        if not session.scalar(select(Product.id).limit(1)):
+        # A catalog migration may create the consulting services before demo seeding.
+        if not session.scalar(select(Product.id).where(Product.image_path.is_distinct_from("/images/data-consulting.webp")).limit(1)):
             for name, price, tagline, story in PRODUCTS:
                 product = Product(name=name, price=price, tagline=tagline, story=story); session.add(product); session.flush(); session.add(Inventory(product_id=product.id, quantity=12))
             session.commit()
