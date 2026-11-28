@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { Button, Divider, InputNumber, Spin, Tag, message } from "antd";
 import { ArrowLeft, Home, ShoppingBag } from "lucide-react";
 import { api, apiErrorMessage, productImage, productReferenceImage, Product, useShop } from "../../shop";
-import { consultingNotesByName } from "../../data/consulting";
+import { consultingDetailsByName } from "../../data/consulting";
 import ProductComments from "../../components/ProductComments";
 import MoleculeCard from "../../components/MoleculeCard";
 
@@ -38,13 +38,12 @@ export default function ProductPage() {
   if (!product) return <main className="loading">{holder}{loadError
     ? <div role="alert"><p>{loadError}</p><Button onClick={() => { setLoadError(""); setAttempt((value) => value + 1); }}>重新加载</Button><p><a href="/">返回首页</a></p></div>
     : <Spin aria-label="正在加载商品详情" />}</main>;
-  const consultingNotes = consultingNotesByName.get(product.name);
-  const consulting = Boolean(consultingNotes);
+  const consulting = consultingDetailsByName.get(product.name);
   const referenceImage = productReferenceImage(product);
   return <main className="detail-page">{holder}
     <a href={consulting ? "/#consulting" : "/#collection"} className="back-home"><ArrowLeft size={16} /> {consulting ? "返回服务列表" : "返回系列"}</a>
     <div className={consulting ? "detail-grid consulting-detail" : "detail-grid"}>
-      {consulting ? <img className="consulting-detail-image" src={productImage(product)} alt="深色背景下显示统计图表的笔记本电脑" width={768} height={1024} decoding="async" fetchPriority="high" /> : <div className="detail-images">
+      {consulting ? <img className="consulting-detail-image" src={productImage(product)} alt={consulting.coverAlt} width={768} height={1024} decoding="async" fetchPriority="high" /> : <div className="detail-images">
         <div className="detail-main"><img src={productImage(product)} alt={`${product.name} 项链展示`} width={640} height={420} decoding="async" fetchPriority="high" /></div>
         {referenceImage ? <div className="detail-secondary"><img src={referenceImage} alt="血清素项链参考图" width={320} height={170} loading="lazy" decoding="async" /></div> : <div className="image-placeholder">产品实拍图<br />待补充</div>}
         <div className="image-placeholder">模特佩戴图<br />待补充</div>
@@ -52,7 +51,7 @@ export default function ProductPage() {
       <div className="detail-copy">
         {!consulting && <p className="eyebrow">MOLECULE PIECE / {String(product.id).padStart(2, "0")}</p>}
         <h1>{product.name}</h1>
-        {consultingNotes ? <>
+        {consulting ? <>
           <section className="consulting-scope" aria-labelledby="consulting-scope-title">
             <h2 id="consulting-scope-title">服务内容</h2>
             <ul>{product.story.split(/\r?\n/).filter((line) => line.trim()).map((line, index) => <li key={index}>{line}</li>)}</ul>
@@ -60,7 +59,7 @@ export default function ProductPage() {
           <section className="consulting-scope" aria-labelledby="consulting-notes-title">
             <h2 id="consulting-notes-title">注意事项</h2>
             <ul>
-              {consultingNotes.map(([label, description]) => <li key={label}><strong>{label}：</strong>{description}</li>)}
+              {consulting.notes.map(([label, description]) => <li key={label}><strong>{label}：</strong>{description}</li>)}
             </ul>
           </section>
         </> : <>

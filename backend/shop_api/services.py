@@ -12,6 +12,7 @@ from werkzeug.security import generate_password_hash
 from .models import CartItem, Comment, CommentImage, Inventory, Product, User
 
 PASSWORD_RE = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$")
+CONSULTING_PRODUCT_NAMES = ("网页爬虫与数据采集服务", "定制化数据咨询服务", "全流程数据服务与年度运维")
 COMMENT_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
 COMMENT_CLEANER = bleach.Cleaner(tags={"p", "br", "div", "span", "strong", "b", "em", "i", "u", "img"}, attributes={"span": ["style"], "div": ["style"], "img": ["src", "alt"]}, css_sanitizer=CSSSanitizer(allowed_css_properties=["color"]), strip=True)
 PRODUCTS = [("苯", 10, "六角环的平衡感", "以稳定的芳香环为轮廓，把秩序藏进一枚轻巧的日常项链。"), ("尼古丁", 15, "连接与分岔", "用分子骨架的转折，记录好奇心在不同方向之间游走的瞬间。"), ("血清素", 12, "温柔的信号", "把与快乐有关的化学讯号化成可佩戴线条，提醒自己留意微小的明亮。"), ("肾上腺素", 18, "跃动的坐标", "不规则的侧链像一次出发前的心跳，为日常增加一点大胆的节奏。"), ("咖啡因", 17, "清醒的几何", "交织的环状结构带来简洁的理性美感，献给每一个专注的清晨。"), ("可卡因", 20, "结构研究 I", "仅取其分子结构的曲线作为艺术研究对象，呈现复杂骨架的视觉张力。"), ("海洛因I型", 12, "结构研究 II", "以化学结构史为灵感的线条练习，不关联任何物质的使用或获取。"), ("LSD", 20, "微观的想象", "将实验室图谱般的分叉转为首饰语言，保留抽象与未知的空间。"), ("吗啡", 25, "结构研究 III", "多环的层次被简化为佩戴尺度的线条，只讨论化学图形的美学。"), ("地巴唑", 28, "双环对话", "两个环相遇又留白，像是一次安静却完整的视觉对话。"), ("戊巴比妥", 28, "秩序的节拍", "重复的连接点让结构像一段节拍，适合喜欢细节的人。"), ("薄荷醇", 21, "清凉的弧线", "从自然分子的立体转折取形，做成轻盈、清爽的流线。"), ("乙醇", 11, "最小的诗", "用极简的双碳骨架证明：简单的结构也能讲述完整的故事。"), ("THC", 25, "结构研究 IV", "将复杂环系抽象成首饰轮廓，作品仅服务于分子图形的观察。"), ("迷幻剂", 30, "想象的折线", "以“感知的边界”为主题进行的抽象系列，不指向任何实际物质。"), ("海洛因II型", 20, "结构研究 V", "延续化学骨架的艺术转译，强调科学图谱与工艺之间的距离感。"), ("裸盖菇素", 15, "自然的分支", "从自然界化合物的分支感获得灵感，做成有机而克制的线条。")]
@@ -48,7 +49,7 @@ def seed_database(sessions: sessionmaker[Session], admin_password: str = "Admin@
             session.add(User(username="admin", email="1136205530@qq.com", password_hash=generate_password_hash(admin_password), role="admin"))
             session.commit()
         # A catalog migration may create the consulting services before demo seeding.
-        if not session.scalar(select(Product.id).where(Product.image_path.is_distinct_from("/images/data-consulting.webp")).limit(1)):
+        if not session.scalar(select(Product.id).where(Product.name.not_in(CONSULTING_PRODUCT_NAMES)).limit(1)):
             for name, price, tagline, story in PRODUCTS:
                 product = Product(name=name, price=price, tagline=tagline, story=story); session.add(product); session.flush(); session.add(Inventory(product_id=product.id, quantity=12))
             session.commit()

@@ -6,7 +6,7 @@ import { Button, Card, Empty, Input, Layout, Tag, message } from "antd";
 import { gsap } from "gsap";
 import { ShoppingBag, Sparkles, Search, ArrowRight, Atom, UserRound } from "lucide-react";
 import { api, productImage, type Product, useShop } from "./shop";
-import { consultingNotesByName } from "./data/consulting";
+import { consultingDetailsByName } from "./data/consulting";
 
 const { Header, Content, Footer } = Layout;
 const emptySubscribe = () => () => {};
@@ -52,8 +52,8 @@ export default function Home() {
     }, pageRef);
     return () => context.revert();
   }, [hydrated, products.length]);
-  const consulting = products.filter((product) => consultingNotesByName.has(product.name)).sort((a, b) => a.price - b.price);
-  const shown = useMemo(() => products.filter((p) => !consultingNotesByName.has(p.name) && `${p.name}${p.tagline}`.includes(keyword.trim())), [products, keyword]);
+  const consulting = products.filter((product) => consultingDetailsByName.has(product.name)).sort((a, b) => a.price - b.price);
+  const shown = useMemo(() => products.filter((p) => !consultingDetailsByName.has(p.name) && `${p.name}${p.tagline}`.includes(keyword.trim())), [products, keyword]);
   const addCart = async (product: Product) => {
     if (!token) { notice.info("登录后即可将作品加入购物车"); return; }
     try { await api.post("/cart", { productId: product.id, quantity: 1 }); await refreshCart(); notice.success("已加入购物车"); } catch { notice.error("加入购物车失败，请稍后再试"); }
