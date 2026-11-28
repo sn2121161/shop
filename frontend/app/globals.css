@@ -49,11 +49,14 @@
 .courier-option small{display:block;font-size:10px;font-weight:400;color:#78837d;margin-top:5px}.tracking-service-notice{padding:14px 16px;border:1px solid #e8d5a4;border-radius:7px;background:#fff9e9;font-size:13px;line-height:1.8;margin:0 0 24px}.tracking-query-error{color:#a61d24;background:#fff1f0;padding:12px 16px;border-radius:6px;margin:18px 0 0;line-height:1.8}.tracking-result{margin-top:24px;border:1px solid #dce3da;background:#fffdf9;border-radius:14px;padding:28px}.tracking-result-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.tracking-result-heading p,.tracking-result-heading>span{font-size:12px;color:#78837d}.tracking-result-heading h2{margin:8px 0 24px;color:#265842}.tracking-timeline{list-style:none;padding:0 0 0 10px;margin:0}.tracking-timeline li{position:relative;padding:0 0 26px 25px;border-left:2px solid #dce3da}.tracking-timeline li:before{content:"";position:absolute;left:-6px;top:4px;width:10px;height:10px;background:#9eb09f;border-radius:50%}.tracking-timeline li:first-child:before{background:#265842;box-shadow:0 0 0 4px #edf3e9}.tracking-timeline li:last-child{padding-bottom:0;border-color:transparent}.tracking-timeline time{font-size:12px;color:#78837d}.tracking-timeline p{font-size:14px;line-height:1.8;margin:6px 0 0;overflow-wrap:anywhere}.tracking-result-time{font-size:12px;color:#78837d;margin:24px 0 0}.tracking-no-data{font-size:14px;color:#68736d;line-height:1.9}.footer-tracking{display:inline-block;margin-left:20px;text-decoration:underline;text-underline-offset:3px}
 
 .consulting-listing {
+  display: grid;
+  gap: 12px;
   max-width: 1280px;
   margin: 0 auto;
   padding: 48px 5vw 0;
   scroll-margin-top: 72px;
 }
+.consulting-listing > h2 { margin: 0 0 6px; font-size: clamp(25px, 4vw, 34px); }
 .consulting-listing-link {
   display: grid;
   grid-template-columns: 108px minmax(0, 1fr) auto;
@@ -68,7 +71,7 @@
 }
 .consulting-listing-link:hover { border-color: var(--moss); }
 .consulting-listing-link img { display: block; width: 100%; height: auto; border-radius: 8px; }
-.consulting-listing-link h2 { margin: 0 0 6px; font-size: 22px; }
+.consulting-listing-link h3 { margin: 0 0 6px; font-size: 22px; }
 .consulting-listing-link p { margin: 0; color: var(--muted); line-height: 1.5; }
 .consulting-listing-price { display: flex; align-items: center; gap: 12px; color: var(--moss); font-weight: 700; white-space: nowrap; }
 
@@ -105,7 +108,7 @@
 
 @media (max-width: 500px) {
   .consulting-listing-link { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; }
-  .consulting-listing-link h2 { font-size: 17px; }
+  .consulting-listing-link h3 { font-size: 17px; }
   .consulting-listing-link p { font-size: 13px; }
   .consulting-listing-price { grid-column: 2; }
 }

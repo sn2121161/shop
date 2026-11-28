@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { Button, Card, Empty, Input, Layout, Tag, message } from "antd";
 import { gsap } from "gsap";
 import { ShoppingBag, Sparkles, Search, ArrowRight, Atom, UserRound } from "lucide-react";
-import { api, DATA_CONSULTING_NAME, productImage, type Product, useShop } from "./shop";
+import { api, productImage, type Product, useShop } from "./shop";
+import { consultingNotesByName } from "./data/consulting";
 
 const { Header, Content, Footer } = Layout;
 const emptySubscribe = () => () => {};
@@ -51,22 +52,23 @@ export default function Home() {
     }, pageRef);
     return () => context.revert();
   }, [hydrated, products.length]);
-  const consulting = products.find((product) => product.name === DATA_CONSULTING_NAME);
-  const shown = useMemo(() => products.filter((p) => p.name !== DATA_CONSULTING_NAME && `${p.name}${p.tagline}`.includes(keyword.trim())), [products, keyword]);
+  const consulting = products.filter((product) => consultingNotesByName.has(product.name)).sort((a, b) => a.price - b.price);
+  const shown = useMemo(() => products.filter((p) => !consultingNotesByName.has(p.name) && `${p.name}${p.tagline}`.includes(keyword.trim())), [products, keyword]);
   const addCart = async (product: Product) => {
     if (!token) { notice.info("登录后即可将作品加入购物车"); return; }
     try { await api.post("/cart", { productId: product.id, quantity: 1 }); await refreshCart(); notice.success("已加入购物车"); } catch { notice.error("加入购物车失败，请稍后再试"); }
   };
   if (!hydrated) return <div className="site-shell" aria-busy="true" />;
-  return <div ref={pageRef}><Layout className="site-shell">{contextHolder}<Topbar hasConsulting={Boolean(consulting)} /><Content>
+  return <div ref={pageRef}><Layout className="site-shell">{contextHolder}<Topbar hasConsulting={consulting.length > 0} /><Content>
     <section className="hero"><div className="hero-copy" data-gsap="hero-copy"><p className="eyebrow"><Sparkles size={15}/> MOLECULE JEWELRY / 01</p><h1 className="hero-title"><span>把 看不见的</span><span><em>分子</em> 戴在</span><span><em>身上</em></span></h1><p className="hero-lede">我的神秘小屋，收集有机化学里那些优雅的连接方式。每一条项链从分子结构出发，在手作的温度里成为一段可以佩戴的故事。</p><a className="primary-link" href="#collection">探索分子系列 <ArrowRight size={18}/></a></div><div className="hero-image" data-gsap="hero-image"><img src="/images/design.jpg" alt="分子项链设计图" width={640} height={530} decoding="async" fetchPriority="high"/><div className="image-note">手作设计档案<br/><strong>来自实验与想象</strong></div></div></section>
     <section id="story" className="story-grid" data-gsap="story"><div className="story-image"><img src="/images/draft.jpg" alt="分子项链草稿手绘" width={640} height={550} loading="lazy" decoding="async"/></div><div className="story-copy"><p className="eyebrow">THE FIRST SKETCH</p><h2>从一页草稿，<br/>到一条项链。</h2><p>化学式并不冷冰冰。它们有相遇、分岔、闭合，也有恰到好处的留白。我把这些微观的秩序画成草图，再一根根弯折、连接，让它们在颈间拥有新的尺度。</p><p>这里的每件作品都是对科学图谱的视觉致意：不售卖任何化学物质，只分享结构、手艺与好奇心。</p><Tag color="gold">化学结构艺术饰品</Tag></div></section>
-    {consulting && <section id="consulting" className="consulting-listing" aria-labelledby="consulting-listing-title">
-      <a href={`/products/${consulting.id}`} className="consulting-listing-link">
-        <img src={productImage(consulting)} alt="" width={108} height={144} loading="lazy" decoding="async" />
-        <div><h2 id="consulting-listing-title">{consulting.name}</h2><p>{consulting.tagline}</p></div>
-        <span className="consulting-listing-price">¥ {consulting.price.toLocaleString("zh-CN")} <ArrowRight size={18} aria-hidden="true" /></span>
-      </a>
+    {consulting.length > 0 && <section id="consulting" className="consulting-listing" aria-labelledby="consulting-listing-title">
+      <h2 id="consulting-listing-title">数据咨询服务</h2>
+      {consulting.map((service) => <a key={service.id} href={`/products/${service.id}`} className="consulting-listing-link">
+        <img src={productImage(service)} alt="" width={108} height={144} loading="lazy" decoding="async" />
+        <div><h3>{service.name}</h3><p>{service.tagline}</p></div>
+        <span className="consulting-listing-price">¥ {service.price.toLocaleString("zh-CN")} <ArrowRight size={18} aria-hidden="true" /></span>
+      </a>)}
     </section>}
     <section id="collection" className="collection"><div className="section-heading"><div><p className="eyebrow">THE COLLECTION / 17 PIECES</p><h2>分子项链系列</h2><p>每一种结构，都是一个安静而独特的符号。</p></div><Input prefix={<Search size={17}/>} placeholder="搜索分子名称或灵感" value={keyword} onChange={(e) => setKeyword(e.target.value)} className="search-box" allowClear/></div>
       {shown.length ? <div className="product-grid">{shown.map((product) => <Card className="product-card" data-gsap="product-card" key={product.id} cover={<a href={`/products/${product.id}`}><div className="product-image"><img src={productImage(product)} alt={`${product.name} 项链`} width={300} height={260} loading="lazy" decoding="async"/><span>查看作品</span></div></a>}><div className="product-meta"><div><h3>{product.name}</h3><p>{product.tagline}</p>{product.lowStock && <em className="low-stock">仅剩 {product.stock} 件</em>}</div><strong>¥ {product.price}</strong></div><div className="product-actions"><a href={`/products/${product.id}`}>阅读故事</a><Button disabled={!product.stock} onClick={() => addCart(product)}>{product.stock ? "加入购物车" : "暂时售罄"}</Button></div></Card>)}</div> : <Empty description="没有找到相应的分子作品"/>}</section>
